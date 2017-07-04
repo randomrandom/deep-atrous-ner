@@ -26,6 +26,7 @@ class BasePreprocessor(object):
         self._remove_space_after_quote = re.compile(r'\b\'\s+\b')
         self._add_space = re.compile('([.,!?()-])')
         self._remove_spaces = re.compile('\s{2,}')
+        self._remove_digits = re.compile(r"""[.+-\/\\]?\d+([.,-:]\d+)?([.:]\d+)?(\.)?""")
         self._dictionary = {}
 
         self.path = path
@@ -42,11 +43,25 @@ class BasePreprocessor(object):
         self.data_size = 0
         self.test_size = 0
 
+    def _build_vocabulary_on_column(self, data, file_name, data_column, word_column, frequency_column):
+        most_common = pd.DataFrame(data[data_column].str.split().tolist()).stack().value_counts()
+        most_common = most_common.to_frame().reset_index()
+        most_common = most_common.rename(columns={'index': word_column, 0: frequency_column})
+
+        most_common.loc[-1] = [self.pad_token, -1]
+        most_common.index = most_common.index + 1
+        most_common = most_common.sort_index()
+
+        most_common[word_column].to_csv(self.path + self.VOCABULARY_PREFIX + file_name, sep=self.separator,
+                                        index=False, encoding='utf-8')
+
+        print('Saved vocabulary file based on %s column' % data_column)
+
     def _build_dictionary(self, data, column_name, entity_column, pos_column=None, chunk_column=None):
         all_text = []
 
-        for review in data[column_name]:
-            all_text.extend(review.split())
+        for example in data[column_name]:
+            all_text.extend(example.split())
 
         all_words = [(self.pad_token, -1), (self.unk_token, -1), (self.eos_token, -1)]
 
@@ -73,34 +88,13 @@ class BasePreprocessor(object):
                                      index=False, encoding='utf-8')
         print('Saved vocabulary to vocabulary file')
 
-        entity_common = pd.DataFrame(data[entity_column].str.split().tolist()).stack().value_counts()
-        entity_common = entity_common.to_frame().reset_index()
-        entity_common = entity_common.rename(columns={'index': word_column, 0: frequency_column})
-
-        entity_common[word_column].to_csv(self.path + self.VOCABULARY_PREFIX + self.VOCABULARY_ENTITY,
-                                          sep=self.separator,
-                                          index=False, encoding='utf-8')
-        print('Saved entity vocabulary to vocabulary file')
+        self._build_vocabulary_on_column(data, self.VOCABULARY_ENTITY, entity_column, word_column, frequency_column)
 
         if pos_column is not None:
-            pos_common = pd.DataFrame(data[pos_column].str.split().tolist()).stack().value_counts()
-            pos_common = pos_common.to_frame().reset_index()
-            pos_common = pos_common.rename(columns={'index': word_column, 0: frequency_column})
-
-            pos_common[word_column].to_csv(self.path + self.VOCABULARY_PREFIX + self.VOCABULARY_POS, sep=self.separator,
-                                           index=False, encoding='utf-8')
-
-            print('Saved pos vocabulary to vocabulary file')
+            self._build_vocabulary_on_column(data, self.VOCABULARY_POS, pos_column, word_column, frequency_column)
 
         if chunk_column is not None:
-            chunk_common = pd.DataFrame(data[chunk_column].str.split().tolist()).stack().value_counts()
-            chunk_common = chunk_common.to_frame().reset_index()
-            chunk_common = chunk_common.rename(columns={'index': word_column, 0: frequency_column})
-
-            chunk_common[word_column].to_csv(self.path + self.VOCABULARY_PREFIX + self.VOCABULARY_CHUNK,
-                                             sep=self.separator,
-                                             index=False, encoding='utf-8')
-            print('Saved chunk vocabulary to vocabulary file')
+            self._build_vocabulary_on_column(data, self.VOCABULARY_CHUNK, chunk_column, word_column, frequency_column)
 
     def save_preprocessed_file(self):
         assert self.new_data is not None, 'No preprocessing has been applied, did you call apply_preprocessing?'
@@ -116,12 +110,14 @@ class BasePreprocessor(object):
                                                       index=False)
         print('Successfully saved preprocessed files')
 
-    def apply_preprocessing(self, column_name):
+    def apply_preprocessing(self, column_name, pos_column, chunk_column, entity_column):
         assert self.data is not None, 'No input data has been loaded'
 
         new_data = self.data.loc[self.data[column_name].str.len() < self.max_data_length].copy()
         new_data[column_name] = new_data[column_name].apply(lambda x: self.preprocess_single_entry(x))
-        self._build_dictionary(new_data, column_name)
+
+        self._build_dictionary(new_data, column_name, entity_column, pos_column=pos_column,
+                               chunk_column=chunk_column)
 
         self.new_data = new_data
         print('Applied preprocessing to input data')
@@ -143,10 +139,7 @@ class BasePreprocessor(object):
         return entry
 
     def _regex_preprocess(self, entry):
-        entry = self._add_space.sub(r' \1 ', entry)
-        entry = self._regex.sub('', entry)
-        entry = self._remove_space_after_quote.sub(r"'", entry)
-        entry = self._remove_spaces.sub(' ', entry).lower().strip()
+        entry = self._remove_digits.sub('reg_digitz', entry)
 
         return entry
 

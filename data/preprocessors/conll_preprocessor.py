@@ -17,17 +17,10 @@ class ConllPreprocessor(BasePreprocessor):
         super().__init__(*args, **kwargs)
 
     def _custom_preprocessing(self, entry):
-        return entry
+        return entry.lower()
 
     def save_preprocessed_file(self):
         pass
-
-    def apply_preprocessing(self, column_name=EXAMPLE_COLUMN, entity_column=ENTITY_COLUMN):
-        assert self.data is not None, 'No input data has been loaded'
-
-        self.new_data = self.data.copy()
-        self._build_dictionary(self.new_data, column_name, entity_column, pos_column=self.POS_COLUMN,
-                               chunk_column=self.CHUNK_COLUMN)
 
     def __read_from_raw_file(self, raw_file):
         number_of_lines = BasePreprocessor.get_line_number(raw_file)

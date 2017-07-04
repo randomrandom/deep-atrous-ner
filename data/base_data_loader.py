@@ -14,8 +14,8 @@ class BaseDataLoader(object):
     _CSV_DELIM = ","
     _DEFAULT_SKIP_HEADER_LINES = 0
     _name = "data_loader"
-    _num_threads = 32  # 32
-    _batch_size = 32  # 64
+    _num_threads = 2  # 32
+    _batch_size = 1  # 64
     _min_after_dequeue = _batch_size * _num_threads
     _capacity = _min_after_dequeue + (_num_threads + 2) * _batch_size  # as recommended in tf tutorial
 
@@ -59,7 +59,8 @@ class BaseDataLoader(object):
         self.test_size = 0
 
         self.shuffle_queue = tf.RandomShuffleQueue(capacity=self._capacity, min_after_dequeue=self._min_after_dequeue,
-                                                   dtypes=[tf.int64, tf.int32], shapes=None)
+                                                   dtypes=[tf.int64, tf.int64, tf.int64, tf.int64, tf.int64],
+                                                   shapes=None)
 
     def get_data(self):
         return self.__load_batch(self.__file_names, record_defaults=self.__record_defaults,
@@ -74,7 +75,7 @@ class BaseDataLoader(object):
 
         return file_path, tail
 
-    def __generate_preprocessed_files(self, file_names, data_column, bucket_boundaries, field_delim=_CSV_DELIM):
+    def __generate_preprocessed_files(self, file_names, data_column, field_delim=_CSV_DELIM):
         new_file_names = []
         for filename in file_names:
             file_path, tail = BaseDataLoader._split_file_to_path_and_name(filename)
@@ -98,9 +99,10 @@ class BaseDataLoader(object):
 
     def __preprocess_file(self, path, file_name, field_delim, data_column):
         preprocessor = ConllPreprocessor(path, file_name, field_delim, self.DEFAULT_VOCABULARY_SIZE,
-                                         self.DEFAULT_MAX_DATA_LENGTH, self.DEFAULT_TEST_SPLIT)
+                                         self.DEFAULT_MAX_DATA_LENGTH)
         preprocessor.read_file()
-        preprocessor.apply_preprocessing(data_column)
+        preprocessor.apply_preprocessing(data_column, ConllPreprocessor.POS_COLUMN, ConllPreprocessor.CHUNK_COLUMN,
+                                         ConllPreprocessor.ENTITY_COLUMN)
         preprocessor.save_preprocessed_file()
         self.vocabulary_size = preprocessor.vocabulary_size
         self.data_size = preprocessor.data_size
@@ -116,8 +118,8 @@ class BaseDataLoader(object):
             file_names, num_epochs=num_epochs, shuffle=shuffle
         )
 
-        sentence, pos, chunks, entities = self._read_file(filename_queue, record_defaults, field_delim,
-                                                          skip_header_lines)
+        sentence, pos, chunks, capitals, entities = self._read_file(filename_queue, record_defaults, field_delim,
+                                                                    skip_header_lines)
 
         voca_path, voca_name = BaseDataLoader._split_file_to_path_and_name(
             original_file_names[0])  # TODO: will be break with multiple filenames
@@ -143,6 +145,7 @@ class BaseDataLoader(object):
         split_sentence = tf.string_split([sentence], " ")
         split_pos = tf.string_split([pos], ' ')
         split_chunks = tf.string_split([chunks], ' ')
+        split_capitals = tf.string_split([capitals], ' ')
         split_entities = tf.string_split([entities], ' ')
 
         # determine lengths of sequences
@@ -161,12 +164,16 @@ class BaseDataLoader(object):
         dense_chunks = tf.sparse_tensor_to_dense(split_chunks, default_value="")
         dense_chunks = self._table_chunk.lookup(dense_chunks)
 
+        dense_capitals = tf.sparse_tensor_to_dense(split_capitals, default_value="")
+        dense_capitals = tf.string_to_number(dense_capitals, out_type=tf.int64)
+
         dense_entities = tf.sparse_tensor_to_dense(split_entities, default_value="")
         dense_entities = self._table_entity.lookup(dense_entities)
 
         # get the enqueue op to pass to a coordinator to be run
-        self.enqueue_op = self.shuffle_queue.enqueue([dense_sent, dense_pos, dense_chunks, dense_entities])
-        dense_sent, dense_pos, dense_chunks, dense_entities = self.shuffle_queue.dequeue()
+        self.enqueue_op = self.shuffle_queue.enqueue(
+            [dense_sent, dense_pos, dense_chunks, dense_capitals, dense_entities])
+        dense_sent, dense_pos, dense_chunks, dense_capitals, dense_entities = self.shuffle_queue.dequeue()
 
         # add queue to queue runner
         self.qr = tf.train.QueueRunner(self.shuffle_queue, [self.enqueue_op] * self.num_threads)
@@ -177,40 +184,45 @@ class BaseDataLoader(object):
         dense_sent = dense_sent.sg_reshape(shape=[1, -1])
         dense_pos = dense_pos.sg_reshape(shape=[1, -1])
         dense_chunks = dense_chunks.sg_reshape(shape=[1, -1])
+        dense_capitals = dense_capitals.sg_reshape(shape=[1, -1])
         dense_entities = dense_entities.sg_reshape(shape=[1, -1])
 
-        _, (padded_sent, padded_pos, padded_chunk, label_examples) = tf.contrib.training.bucket_by_sequence_length(lengths,
-                                                                                             [dense_sent, dense_pos,
-                                                                                              dense_chunks,
-                                                                                              dense_entities],
-                                                                                             batch_size=self._batch_size,
-                                                                                             bucket_boundaries=bucket_boundaries,
-                                                                                             dynamic_pad=True,
-                                                                                             capacity=self._capacity,
-                                                                                             num_threads=self._num_threads)
+        _, (padded_sent, padded_pos, padded_chunk, padded_capitals, label_examples) = \
+            tf.contrib.training.bucket_by_sequence_length([lengths, lengths, lengths, lengths, lengths],
+                                                          [dense_sent, dense_pos, dense_chunks, dense_capitals,
+                                                           dense_entities],
+                                                          batch_size=self._batch_size,
+                                                          bucket_boundaries=bucket_boundaries,
+                                                          dynamic_pad=True,
+                                                          capacity=self._capacity,
+                                                          num_threads=self._num_threads)
 
         # reshape shape into proper form after dequeue from bucket queue
         padded_sent = padded_sent.sg_reshape(shape=[self._batch_size, -1])
         padded_pos = padded_pos.sg_reshape(shape=[self._batch_size, -1])
         padded_chunk = padded_chunk.sg_reshape(shape=[self._batch_size, -1])
+        padded_capitals = padded_capitals.sg_reshape(shape=[self._batch_size, -1])
         label_examples = label_examples.sg_reshape(shape=[self._batch_size, -1])
 
-        return padded_sent, padded_pos, padded_chunk, label_examples
+        return sentence, pos, chunks, capitals, entities, padded_sent, padded_pos, padded_chunk, padded_capitals, label_examples
 
     def _read_file(self, filename_queue, record_defaults, field_delim=_CSV_DELIM,
                    skip_header_lines=_DEFAULT_SKIP_HEADER_LINES):
         """
-        Each class should implement this depending on the file format they want to read, default is csv
+        Reading of the ConLL TSV file
         :param filename_queue: 
-        :return: 
+        :return: single example and label
         """
 
         reader = tf.TextLineReader(skip_header_lines=skip_header_lines)
         key, value = reader.read(filename_queue)
 
-        word, pos, chunk, label = tf.decode_csv(value, record_defaults, field_delim)
+        print(record_defaults)
+        print(value)
+        words, pos, chunks, capitals, entities = tf.decode_csv(value, record_defaults, field_delim)
 
-        return word, pos, chunk, label
+        print(words)
+        return words, pos, chunks, capitals, entities
 
     def preload_embeddings(self, embed_dim, file_name=DEFAULT_PRETRAINED_EMBEDDINGS):
         """
