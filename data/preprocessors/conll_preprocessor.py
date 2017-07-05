@@ -78,8 +78,9 @@ class ConllPreprocessor(BasePreprocessor):
 
         file_name = self.path + self.filename
 
+        print(self.path + self.CLEAN_PREFIX + self.filename)
         processed_file = Path(self.path + self.CLEAN_PREFIX + self.filename)
-
+        print(processed_file)
         if processed_file.exists():
             print('File already exists, no need to recreate')
 

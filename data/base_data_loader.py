@@ -35,7 +35,8 @@ class BaseDataLoader(object):
                  skip_header_lines=_DEFAULT_SKIP_HEADER_LINES,
                  num_threads=_num_threads, batch_size=_batch_size, min_after_dequeue=_min_after_dequeue,
                  capacity=_capacity, used_for_test_data=False, meta_file=DEFAULT_META_DATA_FILE,
-                 save_dir=DEFAULT_METADATA_DIR, table=None, name=_name):
+                 save_dir=DEFAULT_METADATA_DIR, table=None, table_pos=None, table_chunk=None, table_entity=None,
+                 name=_name):
         self.__file_names = file_names
         self.__field_delim = field_delim
         self.__record_defaults = record_defaults
@@ -53,6 +54,9 @@ class BaseDataLoader(object):
         self.meta_file = meta_file
         self.save_dir = save_dir
         self.table = table
+        self.table_chunk = table_chunk
+        self.table_pos = table_pos
+        self.table_entity = table_entity
         self.num_threads = num_threads
         self.vocabulary_size = 0
         self.train_size = 0
@@ -120,25 +124,35 @@ class BaseDataLoader(object):
         sentence, pos, chunks, capitals, entities = self._read_file(filename_queue, record_defaults, field_delim,
                                                                     skip_header_lines)
 
-        voca_path, voca_name = BaseDataLoader._split_file_to_path_and_name(
+        voca_path, voca_suffix = BaseDataLoader._split_file_to_path_and_name(
             original_file_names[0])  # TODO: will be break with multiple filenames
-        voca_name = ConllPreprocessor.VOCABULARY_PREFIX + voca_name
+        voca_name = ConllPreprocessor.VOCABULARY_PREFIX + voca_suffix
         self.__vocabulary_file = voca_path + voca_name
 
         # load look up tables that maps words to ids
         if self.table is None:
+            print('vocabulary table is None => creating it')
             self.table = tf.contrib.lookup.index_table_from_file(vocabulary_file=voca_path + voca_name,
                                                                  default_value=ConllPreprocessor.UNK_TOKEN_ID,
                                                                  num_oov_buckets=0)
 
-        self._table_pos = tf.contrib.lookup.index_table_from_file(vocabulary_file=voca_path + self._TABLE_POS,
-                                                                  num_oov_buckets=0)
+        if self.table_pos is None:
+            print('vocabulary table_pos is None => creating it')
+            self.table_pos = tf.contrib.lookup.index_table_from_file(
+                vocabulary_file=voca_path + self._TABLE_POS + voca_suffix,
+                num_oov_buckets=0)
 
-        self._table_chunk = tf.contrib.lookup.index_table_from_file(vocabulary_file=voca_path + self._TABLE_CHUNK,
-                                                                    num_oov_buckets=0)
+        if self.table_chunk is None:
+            print('vocabulary table_chunk is None => creating it')
+            self.table_chunk = tf.contrib.lookup.index_table_from_file(
+                vocabulary_file=voca_path + self._TABLE_CHUNK + voca_suffix,
+                num_oov_buckets=0)
 
-        self._table_entity = tf.contrib.lookup.index_table_from_file(vocabulary_file=voca_path + self._TABLE_ENTITY,
-                                                                     num_oov_buckets=0)
+        if self.table_entity is None:
+            print('vocabulary table_entity is None => creating it')
+            self.table_entity = tf.contrib.lookup.index_table_from_file(
+                vocabulary_file=voca_path + self._TABLE_ENTITY + voca_suffix,
+                num_oov_buckets=0)
 
         # convert to tensor of strings
         split_sentence = tf.string_split([sentence], " ")
@@ -158,16 +172,16 @@ class BaseDataLoader(object):
         dense_sent = self.table.lookup(dense_sent)
 
         dense_pos = tf.sparse_tensor_to_dense(split_pos, default_value="")
-        dense_pos = self._table_pos.lookup(dense_pos)
+        dense_pos = self.table_pos.lookup(dense_pos)
 
         dense_chunks = tf.sparse_tensor_to_dense(split_chunks, default_value="")
-        dense_chunks = self._table_chunk.lookup(dense_chunks)
+        dense_chunks = self.table_chunk.lookup(dense_chunks)
 
         dense_capitals = tf.sparse_tensor_to_dense(split_capitals, default_value="")
         dense_capitals = tf.string_to_number(dense_capitals, out_type=tf.int64)
 
         dense_entities = tf.sparse_tensor_to_dense(split_entities, default_value="")
-        dense_entities = self._table_entity.lookup(dense_entities)
+        dense_entities = self.table_entity.lookup(dense_entities)
 
         # get the enqueue op to pass to a coordinator to be run
         self.enqueue_op = self.shuffle_queue.enqueue(
