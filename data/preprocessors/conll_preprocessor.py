@@ -70,6 +70,7 @@ class ConllPreprocessor(BasePreprocessor):
             self.data = pd.DataFrame(data=all_examples, columns=[self.EXAMPLE_COLUMN, self.POS_COLUMN,
                                                                  self.CHUNK_COLUMN, self.CAPITAL_COLUMN,
                                                                  self.ENTITY_COLUMN])
+
         return self.data
 
     def read_file(self):

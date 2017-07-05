@@ -15,7 +15,7 @@ class BaseDataLoader(object):
     _DEFAULT_SKIP_HEADER_LINES = 0
     _name = "data_loader"
     _num_threads = 2  # 32
-    _batch_size = 1  # 64
+    _batch_size = 16  # 64
     _min_after_dequeue = _batch_size * _num_threads
     _capacity = _min_after_dequeue + (_num_threads + 2) * _batch_size  # as recommended in tf tutorial
 
@@ -86,7 +86,6 @@ class BaseDataLoader(object):
             file = Path(file_name)
             new_file_names.append(file_name)
 
-            print(file)
             if file.exists():
                 try:
                     tf.os.remove(file_name)
@@ -187,8 +186,8 @@ class BaseDataLoader(object):
         dense_capitals = dense_capitals.sg_reshape(shape=[1, -1])
         dense_entities = dense_entities.sg_reshape(shape=[1, -1])
 
-        _, (padded_sent, padded_pos, padded_chunk, padded_capitals, label_examples) = \
-            tf.contrib.training.bucket_by_sequence_length([lengths, lengths, lengths, lengths, lengths],
+        _, (padded_sent, padded_pos, padded_chunk, padded_capitals, padded_entities) = \
+            tf.contrib.training.bucket_by_sequence_length(lengths,
                                                           [dense_sent, dense_pos, dense_chunks, dense_capitals,
                                                            dense_entities],
                                                           batch_size=self._batch_size,
@@ -202,9 +201,9 @@ class BaseDataLoader(object):
         padded_pos = padded_pos.sg_reshape(shape=[self._batch_size, -1])
         padded_chunk = padded_chunk.sg_reshape(shape=[self._batch_size, -1])
         padded_capitals = padded_capitals.sg_reshape(shape=[self._batch_size, -1])
-        label_examples = label_examples.sg_reshape(shape=[self._batch_size, -1])
+        padded_entities = padded_entities.sg_reshape(shape=[self._batch_size, -1])
 
-        return sentence, pos, chunks, capitals, entities, padded_sent, padded_pos, padded_chunk, padded_capitals, label_examples
+        return padded_sent, padded_pos, padded_chunk, padded_capitals, padded_entities
 
     def _read_file(self, filename_queue, record_defaults, field_delim=_CSV_DELIM,
                    skip_header_lines=_DEFAULT_SKIP_HEADER_LINES):
@@ -217,11 +216,8 @@ class BaseDataLoader(object):
         reader = tf.TextLineReader(skip_header_lines=skip_header_lines)
         key, value = reader.read(filename_queue)
 
-        print(record_defaults)
-        print(value)
         words, pos, chunks, capitals, entities = tf.decode_csv(value, record_defaults, field_delim)
 
-        print(words)
         return words, pos, chunks, capitals, entities
 
     def preload_embeddings(self, embed_dim, file_name=DEFAULT_PRETRAINED_EMBEDDINGS):

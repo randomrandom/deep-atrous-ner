@@ -28,8 +28,7 @@ class ConllLoader(BaseDataLoader):
                          skip_header_lines=skip_header_lines, meta_file=ConllLoader.DEFAULT_META_DATA_FILE,
                          save_dir=ConllLoader.DEFAULT_METADATA_DIR, **kwargs)
 
-        self.source_words, self.source_pos, self.source_chunk, self.source_capitals, self.target,\
-            self.o1, self.o2, self.o3, self.o4, self.o5= self.get_data()
+        self.source_words, self.source_pos, self.source_chunk, self.source_capitals, self.entities = self.get_data()
 
         data_size = self.data_size
         self.num_batches = data_size // self._batch_size
