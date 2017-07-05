@@ -133,7 +133,7 @@ def sg_train_func(func):
                            (epoch, sess_.run(tf.sg_global_step()),
                             ('NA' if loss is None else '%8.6f' % loss)))
 
-        local_init_op = tf.group(tf.sg_phase().assign(True), tf.tables_initializer())
+        local_init_op = tf.group(tf.sg_phase().assign(True), tf.tables_initializer(), tf.local_variables_initializer())
 
         # create supervisor
         sv = tf.train.Supervisor(logdir=opt.save_dir,

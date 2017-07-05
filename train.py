@@ -4,7 +4,7 @@ from model.trainer import classifier_train
 
 __author__ = 'georgi.val.stoyan0v@gmail.com'
 
-BATCH_SIZE = 16
+BATCH_SIZE = 256
 
 BUCKETS = [5, 10, 15, 20, 30]
 DATA_FILE = ['./data/datasets/conll_2003/eng.train']
@@ -81,14 +81,23 @@ def get_val_metrics(opt):
 
         test_classifier = decode(v_i, NUM_LABELS, data.vocabulary_size)
 
+        labels = opt.entities[opt.gpu_index]
+
         # accuracy evaluation (validation set)
         acc = (test_classifier.sg_softmax()
                .sg_accuracy(target=opt.entities[opt.gpu_index], name='accuracy'))
 
+        # calculating precision, recall and f-1 score (more relevant than accuracy)
+        predictions = test_classifier.sg_argmax(axis=2)
+        precision, precision_op = tf.metrics.precision(labels, predictions)
+        recall, recall_op = tf.metrics.recall(labels, predictions)
+
+        f1_score = (2 * (precision_op * recall_op)) / (precision_op + recall_op)
+
         # validation loss
         val_loss = (test_classifier.sg_ce(target=opt.entities[opt.gpu_index], name='val_loss'))
 
-        return acc, val_loss
+        return acc, val_loss, precision_op, recall_op, f1_score
 
 
 # with tf.sg_context(name='model'):
