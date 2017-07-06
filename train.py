@@ -100,7 +100,7 @@ def get_val_metrics(opt):
 
 
 # train
-classifier_train(sess=sess, log_interval=50, lr=1e-3,
+classifier_train(sess=sess, log_interval=50, lr=1e-4,
                  loss=get_train_loss(words=words, pos=pos, chunks=chunks, capitals=capitals, entities=entities)[0],
                  eval_metric=get_val_metrics(words=val_words, pos=val_pos, chunks=val_chunks, capitals=val_capitals,
                                              entities=val_entities)[0],
