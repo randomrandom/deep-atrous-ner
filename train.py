@@ -41,7 +41,6 @@ else:
     word_emb = tf.sg_emb(name=word_embedding_name, voca_size=data.vocabulary_size, dim=embedding_dim)
     pos_emb = tf.sg_emb(name='pos_emb', voca_size=46, dim=5)
     chunk_emb = tf.sg_emb(name='chunk_emb', voca_size=18, dim=2)
-    # entities_emb = tf.sg_emb(name='entities_emb', voca_size=NUM_LABELS, dim=2)
 
 
 # data.visualize_embeddings(sess, word_emb, word_embedding_name)
@@ -53,10 +52,10 @@ def get_train_loss(opt):
         z_w = opt.words[opt.gpu_index].sg_lookup(emb=word_emb)
         z_p = opt.pos[opt.gpu_index].sg_lookup(emb=pos_emb)
         z_c = opt.chunks[opt.gpu_index].sg_lookup(emb=chunk_emb)
-        # z_cap = opt.capitals[opt.gpu_index].sg_cast(dtype=tf.float32)
+        z_cap = opt.capitals[opt.gpu_index].sg_cast(dtype=tf.float32)
 
         # we concatenated all inputs into one single input vector
-        z_i = tf.concat([z_w, z_p, z_c], 2)
+        z_i = tf.concat([z_w, z_p, z_c, z_cap], 2)
 
         train_classifier = decode(z_i, NUM_LABELS, data.vocabulary_size)
 
@@ -74,10 +73,10 @@ def get_val_metrics(opt):
         v_w = opt.words[opt.gpu_index].sg_lookup(emb=word_emb)
         v_p = opt.pos[opt.gpu_index].sg_lookup(emb=pos_emb)
         v_c = opt.chunks[opt.gpu_index].sg_lookup(emb=chunk_emb)
-        # v_cap = opt.capitals[opt.gpu_index].sg_cast(dtype=tf.float32)
+        v_cap = opt.capitals[opt.gpu_index].sg_cast(dtype=tf.float32)
 
         # we concatenated all inputs into one single input vector
-        v_i = tf.concat([v_w, v_p, v_c], 2)
+        v_i = tf.concat([v_w, v_p, v_c, v_cap], 2)
 
         test_classifier = decode(v_i, NUM_LABELS, data.vocabulary_size)
 
@@ -99,29 +98,6 @@ def get_val_metrics(opt):
 
         return acc, val_loss, precision_op, recall_op, f1_score
 
-
-# with tf.sg_context(name='model'):
-#     z_w = data.source_words.sg_lookup(emb=word_emb)
-#
-#     train_classifier = decode(z_w, NUM_LABELS)
-#
-#     loss = train_classifier.sg_ce(target=data.entities)
-#     '''
-#     z_w = data.source_words.sg_lookup(emb=word_emb)
-#
-#     enc = encode(z_w)
-#
-#     # shift target for training source
-#     y_in = tf.concat([tf.zeros((BATCH_SIZE, 1), tf.int64), data.entities[:, :-1]], axis=1)
-#     z_y = y_in.sg_lookup(emb=entities_emb)
-#
-#     enc = enc.sg_concat(target=z_y)
-#
-#     dec = decode(enc, NUM_LABELS)
-#
-#     loss = dec.sg_ce(target=data.entities, mask=True)
-#     '''
-#
 
 # train
 classifier_train(sess=sess, log_interval=50, lr=1e-3,

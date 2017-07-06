@@ -220,7 +220,7 @@ class BaseDataLoader(object):
         padded_sent = padded_sent.sg_reshape(shape=[self._batch_size, -1])
         padded_pos = padded_pos.sg_reshape(shape=[self._batch_size, -1])
         padded_chunk = padded_chunk.sg_reshape(shape=[self._batch_size, -1])
-        padded_capitals = padded_capitals.sg_reshape(shape=[self._batch_size, -1])
+        padded_capitals = padded_capitals.sg_reshape(shape=[self._batch_size, -1, 1])
         padded_entities = padded_entities.sg_reshape(shape=[self._batch_size, -1])
 
         return padded_sent, padded_pos, padded_chunk, padded_capitals, padded_entities

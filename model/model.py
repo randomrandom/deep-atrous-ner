@@ -39,11 +39,11 @@ def sg_res_block(tensor, opt):
 
         # 1xk conv dilated
         out = (input_
-               .sg_aconv1d(size=opt.size, rate=opt.rate, dout=opt.dout, causal=opt.causal, act='relu', ln=True,
+               .sg_aconv1d(size=opt.size, rate=opt.rate, causal=opt.causal, act='relu', ln=True,
                            regularizer=reg_type, name='aconv'))
 
         # dimension recover and residual connection
-        out = out.sg_conv1d(size=1, dim=in_dim, regularizer=reg_type, name='conv_out') + tensor
+        out = out.sg_conv1d(size=1, dim=in_dim, dout=opt.dout, regularizer=reg_type, name='conv_out') + tensor
 
     return out
 
