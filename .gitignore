@@ -8,10 +8,9 @@ asset/train
 model/embeddings/glove*
 data/datasets/conll_2003/*.csv
 data/datasets/conll_2003/*.tsv
-data/datasets/conll_2003/*.testa
-data/datasets/conll_2003/*.testb
-data/datasets/conll_2003/*.train
-data/datasets/conll_2003/*.openNLP
+data/datasets/conll_2003/clean*
+data/datasets/conll_2003/metadata*
+data/datasets/conll_2003/vocabulary*
 *.ipynb_checkpoints
 *.ipynb
 __pycache__
