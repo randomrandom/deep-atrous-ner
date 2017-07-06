@@ -54,6 +54,7 @@ class BaseDataLoader(object):
         self.meta_file = meta_file
         self.save_dir = save_dir
         self.table = table
+        self.reverse_table = None
         self.table_chunk = table_chunk
         self.table_pos = table_pos
         self.table_entity = table_entity
@@ -85,7 +86,7 @@ class BaseDataLoader(object):
             file_path, tail = BaseDataLoader._split_file_to_path_and_name(filename)
 
             old_file_name = tail
-            prefix = ConllPreprocessor.TEST_PREFIX if self._used_for_test_data else ConllPreprocessor.CLEAN_PREFIX
+            prefix = ConllPreprocessor.CLEAN_PREFIX
             file_name = file_path + prefix + tail
             file = Path(file_name)
             new_file_names.append(file_name)
@@ -153,6 +154,11 @@ class BaseDataLoader(object):
             self.table_entity = tf.contrib.lookup.index_table_from_file(
                 vocabulary_file=voca_path + self._TABLE_ENTITY + voca_suffix,
                 num_oov_buckets=0)
+
+        if self._used_for_test_data:
+            print('Rever vocabulary table is needed => creating it')
+            self.reverse_table = tf.contrib.lookup.index_to_string_table_from_file(
+                vocabulary_file=voca_path + self._TABLE_ENTITY + voca_suffix)
 
         # convert to tensor of strings
         split_sentence = tf.string_split([sentence], " ")
