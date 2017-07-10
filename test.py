@@ -1,23 +1,23 @@
+from sklearn import metrics
+from tqdm import tqdm
+
 from data.conll_loader import ConllLoader
 from model.model import *
 
 __author__ = 'georgi.val.stoyan0v@gmail.com'
 
 BATCH_SIZE = 1
+DEBUG_SHOW = -1  # number of prediction samples to be shown
+EPOCHS = 1
 
-BUCKETS = [5, 10, 15, 20, 30]
+BUCKETS = [1]
 DATA_FILE = ['./data/datasets/conll_2003/eng.train']
-NUM_LABELS = 9
+TEST_FILES = ['./data/datasets/conll_2003/eng.testa']
+NUM_LABELS = 6
 
 data = ConllLoader(BUCKETS, DATA_FILE, used_for_test_data=True, batch_size=BATCH_SIZE)
-
-words = tf.placeholder(dtype=tf.string, shape=BATCH_SIZE)
-pos = tf.placeholder(dtype=tf.string, shape=BATCH_SIZE)
-chunks = tf.placeholder(dtype=tf.string, shape=BATCH_SIZE)
-capitals = tf.placeholder(dtype=tf.string, shape=BATCH_SIZE)
-
-# preprocess things
-p_words, p_pos, p_chunks, p_capitals = data.build_eval_graph(words, pos, chunks, capitals)
+test = ConllLoader(BUCKETS, TEST_FILES, batch_size=BATCH_SIZE, table=data.table, table_pos=data.table_pos,
+                   table_chunk=data.table_chunk, table_entity=data.table_entity)
 
 # setup embeddings, preload pre-trained embeddings if needed
 word_emb = None
@@ -31,44 +31,78 @@ if use_pre_trained_embeddings:
     word_emb = init_custom_embeddings(name=word_embedding_name, embeddings_matrix=embedding_matrix, trainable=True)
 else:
     word_emb = tf.sg_emb(name=word_embedding_name, voca_size=data.vocabulary_size, dim=embedding_dim)
-    pos_emb = tf.sg_emb(name='pos_emb', voca_size=46, dim=5)
-    chunk_emb = tf.sg_emb(name='chunk_emb', voca_size=18, dim=2)
-    # entities_emb = tf.sg_emb(name='entities_emb', voca_size=NUM_LABELS, dim=2)
-
-# data.visualize_embeddings(sess, word_emb, word_embedding_name)
 
 with tf.sg_context(name='model'):
-    z_w = p_words.sg_lookup(emb=word_emb)
-    z_p = p_pos.sg_lookup(emb=pos_emb)
-    z_c = p_chunks.sg_lookup(emb=chunk_emb)
-    # z_cap = opt.capitals[opt.gpu_index].sg_cast(dtype=tf.float32)
+    z_w = test.source_words.sg_lookup(emb=word_emb)
+    z_p = tf.one_hot((test.source_pos - 1), depth=6)
+    z_c = tf.one_hot((test.source_chunk - 1), depth=6)
+    z_cap = test.source_capitals.sg_cast(dtype=tf.float32)
 
     # we concatenated all inputs into one single input vector
-    z_i = tf.concat([z_w, z_p, z_c], 2)
+    z_i = tf.concat([z_w, z_p, z_c, z_cap], 2)
 
-    classifier = decode(z_i, NUM_LABELS, data.vocabulary_size)
+    classifier = decode(z_i, NUM_LABELS, test=True)
 
-score = classifier.sg_argmax(axis=2)
-entities = data.reverse_table.lookup(score)
+    # calculating precision, recall and f-1 score (more relevant than accuracy)
+    predictions = classifier.sg_argmax(axis=2)
+    entities = data.reverse_table.lookup(predictions)
+    one_hot_predictions = classifier
+    one_hot_labels = tf.one_hot(test.entities, NUM_LABELS, dtype=tf.int64)
+
+    precision, precision_op = tf.contrib.metrics.streaming_sparse_average_precision_at_k(one_hot_predictions,
+                                                                                         one_hot_labels, 1,
+                                                                                         name='test_b_precision')
+    recall, recall_op = tf.contrib.metrics.streaming_sparse_recall_at_k(one_hot_predictions, one_hot_labels, 1,
+                                                                        name='test_b_recall')
+
+    f1_score = (2 * (precision_op * recall_op)) / (precision_op + recall_op)
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
-
     # init session vars
     tf.sg_init(sess)
     sess.run(tf.tables_initializer())
     tf.sg_restore(sess, tf.train.latest_checkpoint('asset/train'))
 
-    exit_command = 'quit'
-    print('Enter an example or write \'%s\' to exit' % exit_command)
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(coord=coord)
 
-    while True:
-        i_sentence = input("Enter your a sentence: ")
-        if i_sentence == exit_command: break
+    try:
+        all_true = []
+        all_predicted = []
+        for i in tqdm(range(0, EPOCHS * test.data_size // BATCH_SIZE)):
+            entities_sample, predictions_sample, _, __ = sess.run([test.entities, predictions, precision_op, recall_op])
 
-        i_pos = input("Enter the PoS tags: ")
-        i_chunks = input("Enter the CHUNK tags: ")
+            all_true.extend(entities_sample.flatten())
+            all_predicted.extend(predictions_sample.flatten())
 
-        i_sentence = data.process_console_input(i_sentence)
-        result = sess.run(entities, {words: [i_sentence], pos: [i_pos], chunks: [i_chunks]})
+            if i < DEBUG_SHOW:
+                print(entities_sample)
+                print('Predictions')
+                print(predictions_sample)
 
-        print('Tags: %s' % str(result))
+        first_class = 1
+        s_prec = metrics.precision_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average=None)
+        s_prec_stat = metrics.precision_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average='micro')
+        s_rec = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average=None)
+        s_rec_stat = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average='micro')
+        s_f1 = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average=None)
+        s_f1_stat = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average='micro')
+        s_confusion = metrics.confusion_matrix(all_true, all_predicted)
+
+        print(s_prec)
+        print(s_prec_stat)
+        print(s_rec)
+        print(s_rec_stat)
+        print(s_f1)
+        print(s_f1_stat)
+        print(s_confusion)
+
+        final_precision, final_recall, final_f1 = sess.run([precision, recall, f1_score])
+        print('Precision:{}'.format(final_precision))
+        print('Recall:{}'.format(final_recall))
+        print('f-1 score:{}'.format(final_f1))
+    except tf.errors.OutOfRangeError as ex:
+        coord.request_stop(ex=ex)
+    finally:
+        coord.request_stop()
+        coord.join(threads)

@@ -13,11 +13,11 @@ GLOVE_6B_100d_EMBEDDINGS = 'glove.6B.100d.txt'
 GLOVE_6B_200d_EMBEDDINGS = 'glove.6B.200d.txt'
 GLOVE_6B_300d_EMBEDDINGS = 'glove.6B.300d.txt'
 
-embedding_dim = 64  # 300 # embedding dimension
-latent_dim = 64  # 256 # hidden layer dimension
-num_blocks = 1  # 2 # dilated blocks
+embedding_dim = 256  # 300 # embedding dimension
+latent_dim = 128  # 256 # hidden layer dimension
+num_blocks = 2  # 2 # dilated blocks
 reg_type = 'l2'  # type of regularization used
-default_dout = 0.2  # define the default dropout rate
+default_dout = 0.5  # define the default dropout rate
 use_pre_trained_embeddings = False  # whether to use pre-trained embedding vectors
 pre_trained_embeddings_file = EMBEDDINGS_DIR + GLOVE_6B_300d_EMBEDDINGS  # the location of the pre-trained embeddings
 

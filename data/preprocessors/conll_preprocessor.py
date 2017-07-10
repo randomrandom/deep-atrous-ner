@@ -36,17 +36,15 @@ class ConllPreprocessor(BasePreprocessor):
                     return len(sample_line.split()) > 0 and sample_line != '' and '-DOCSTART-' not in sample_line
 
                 if is_good_example(line):
-
                     inside_example = True
 
                     word, pos, chunk, entity = line.split()
 
-                    is_capital_word = word[0].isupper() + 1  # we add one because 0 values are used for padding
                     all_words.append(word.lower())
-                    all_pos.append(pos)
-                    all_chunk.append(chunk)
-                    all_capital.append(is_capital_word)
-                    all_entity.append(entity)
+                    all_pos.append(self.preprocess_pos(pos))
+                    all_chunk.append(self.preprocess_chunk(chunk))
+                    all_capital.append(self.get_capital_feature(word))
+                    all_entity.append(self.preprocess_entity(entity))
 
                 elif inside_example:
                     if inside_example:
@@ -100,3 +98,46 @@ class ConllPreprocessor(BasePreprocessor):
         self.new_data.to_csv(preprocessed_file, sep=self.separator, index=False)
 
         print('Successfully saved preprocessed file: %s' % preprocessed_file)
+
+    def preprocess_pos(self, tag):
+        result = None
+
+        if tag == 'NN' or tag == 'NNS':
+            result = 'NN'
+        elif tag == 'FW':
+            result = 'FW'
+        elif tag == 'NNP' or tag == 'NNPS':
+            result = 'NNP'
+        elif 'VB' in tag:
+            result = 'VB'
+        else:
+            result = 'OTHER'
+
+        return result
+
+    def preprocess_chunk(self, tag):
+        result = None
+
+        if 'NP' in tag:
+            result = 'NP'
+        elif 'VP' in tag:
+            result = 'VP'
+        elif 'PP' in tag:
+            result = 'PP'
+        elif tag == 'O':
+            result = 'O'
+        else:
+            result = 'OTHER'
+
+        return result
+
+    def preprocess_entity(self, entity):
+        entity = entity.split('-')
+        entity = entity[0] if len(entity) == 1 else entity[1]
+
+        return entity
+
+    def get_capital_feature(self, word):
+        is_capital_word = word[0].isupper() + 1  # we add one because 0 values are used for padding
+
+        return is_capital_word

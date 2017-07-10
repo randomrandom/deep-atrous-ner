@@ -24,7 +24,7 @@ class BaseDataLoader(object):
     _TABLE_ENTITY = ConllPreprocessor.VOCABULARY_PREFIX + ConllPreprocessor.VOCABULARY_ENTITY
 
     DEFAULT_TEST_SPLIT = .1
-    DEFAULT_MAX_DATA_LENGTH = 2000
+    DEFAULT_MAX_DATA_LENGTH = 240
     DEFAULT_VOCABULARY_SIZE = 50000
     DEFAULT_PRETRAINED_EMBEDDINGS = 'data/embeddings/glove.6B.300d.txt'
 
