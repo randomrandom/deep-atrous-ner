@@ -13,7 +13,6 @@ EPOCHS = 1
 BUCKETS = [1]
 DATA_FILE = ['./data/datasets/conll_2003/eng.train']
 TEST_FILES = ['./data/datasets/conll_2003/eng.testa']
-NUM_LABELS = 6
 
 data = ConllLoader(BUCKETS, DATA_FILE, used_for_test_data=True, batch_size=BATCH_SIZE)
 test = ConllLoader(BUCKETS, TEST_FILES, batch_size=BATCH_SIZE, table=data.table, table_pos=data.table_pos,
@@ -34,20 +33,21 @@ else:
 
 with tf.sg_context(name='model'):
     z_w = test.source_words.sg_lookup(emb=word_emb)
-    z_p = tf.one_hot((test.source_pos - 1), depth=6)
-    z_c = tf.one_hot((test.source_chunk - 1), depth=6)
+    z_p = tf.one_hot(test.source_pos, depth=num_pos)
+    z_c = tf.one_hot(test.source_chunk, depth=num_chunk)
     z_cap = test.source_capitals.sg_cast(dtype=tf.float32)
 
     # we concatenated all inputs into one single input vector
     z_i = tf.concat([z_w, z_p, z_c, z_cap], 2)
 
-    classifier = decode(z_i, NUM_LABELS, test=True)
+    #classifier = rnn_model(z_i, num_labels, is_test=True)
+    classifier = decode(z_i, num_labels, test=True)
 
     # calculating precision, recall and f-1 score (more relevant than accuracy)
     predictions = classifier.sg_argmax(axis=2)
     entities = data.reverse_table.lookup(predictions)
     one_hot_predictions = classifier
-    one_hot_labels = tf.one_hot(test.entities, NUM_LABELS, dtype=tf.int64)
+    one_hot_labels = tf.one_hot(test.entities, num_labels, dtype=tf.int64)
 
     precision, precision_op = tf.contrib.metrics.streaming_sparse_average_precision_at_k(one_hot_predictions,
                                                                                          one_hot_labels, 1,
@@ -81,12 +81,12 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
                 print(predictions_sample)
 
         first_class = 1
-        s_prec = metrics.precision_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average=None)
-        s_prec_stat = metrics.precision_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average='micro')
-        s_rec = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average=None)
-        s_rec_stat = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average='micro')
-        s_f1 = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average=None)
-        s_f1_stat = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average='micro')
+        s_prec = metrics.precision_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average=None)
+        s_prec_stat = metrics.precision_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average='micro')
+        s_rec = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average=None)
+        s_rec_stat = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average='micro')
+        s_f1 = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average=None)
+        s_f1_stat = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average='micro')
         s_confusion = metrics.confusion_matrix(all_true, all_predicted)
 
         print(s_prec)

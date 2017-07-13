@@ -13,13 +13,37 @@ GLOVE_6B_100d_EMBEDDINGS = 'glove.6B.100d.txt'
 GLOVE_6B_200d_EMBEDDINGS = 'glove.6B.200d.txt'
 GLOVE_6B_300d_EMBEDDINGS = 'glove.6B.300d.txt'
 
-embedding_dim = 256  # 300 # embedding dimension
-latent_dim = 128  # 256 # hidden layer dimension
+embedding_dim = 300  # 300 # embedding dimension
+latent_dim = 256  # 256 # hidden layer dimension
 num_blocks = 2  # 2 # dilated blocks
 reg_type = 'l2'  # type of regularization used
-default_dout = 0.5  # define the default dropout rate
+default_dout = 0.3  # define the default dropout rate
 use_pre_trained_embeddings = False  # whether to use pre-trained embedding vectors
 pre_trained_embeddings_file = EMBEDDINGS_DIR + GLOVE_6B_300d_EMBEDDINGS  # the location of the pre-trained embeddings
+num_labels = 6
+num_pos = 6
+num_chunk = 6
+
+
+@tf.sg_layer_func
+def identity(tensor, opt):
+    r"""Returns the input tensor itself.
+
+    Args:
+      tensor: A `Tensor` (automatically passed by decorator).
+      opt:
+        bn: Boolean. If True, batch normalization is applied.
+        ln: Boolean. If True, layer normalization is applied.
+        dout: A float of range [0, 100). A dropout rate. Default is 0.
+        act: A name of activation function. e.g., `sigmoid`, `tanh`, etc.
+    Returns:
+      The same tensor as `tensor`.
+    """
+    return tensor
+
+
+# inject the custom identity function
+tf.sg_inject_func(identity)
 
 
 # residual block
@@ -31,19 +55,21 @@ def sg_res_block(tensor, opt):
     # input dimension
     in_dim = tensor.get_shape().as_list()[-1]
 
-    with tf.sg_context(name='block_%d_%d' % (opt.block, opt.rate)):
-        # reduce dimension
+    with tf.sg_context(name='block_%d' % opt.block):
         input_ = (tensor
                   .sg_bypass(act='relu', ln=(not opt.is_first), name='bypass')  # do not
                   .sg_conv1d(size=1, dim=in_dim / 2, act='relu', ln=True, regularizer=reg_type, name='conv_in'))
 
-        # 1xk conv dilated
-        out = (input_
-               .sg_aconv1d(size=opt.size, rate=opt.rate, causal=opt.causal, act='relu', ln=True,
-                           regularizer=reg_type, name='aconv'))
+        for rate in opt.rates:
+            with tf.sg_context(name='rate_%d' % rate):
+                # 1xk conv dilated
+                input_ = (input_.sg_aconv1d(size=opt.size, rate=rate, causal=opt.causal, act='relu', ln=True,
+                                            regularizer=reg_type, name='aconv'))
 
         # dimension recover and residual connection
-        out = out.sg_conv1d(size=1, dim=in_dim, dout=opt.dout, regularizer=reg_type, name='conv_out') + tensor
+        out = input_.sg_conv1d(size=1, dim=in_dim, regularizer=reg_type, name='conv_out') + tensor
+
+        out = out.identity(ln=True, dout=opt.dout, name='layer_norm')
 
     return out
 
@@ -51,11 +77,11 @@ def sg_res_block(tensor, opt):
 # inject residual multiplicative block
 tf.sg_inject_func(sg_res_block)
 
+
 #
 # encode graph ( atrous convolution )
 #
 def encode(x, test=False):
-
     with tf.sg_context(name='encoder'):
         dropout = 0 if test else default_dout
         res = x.sg_conv1d(size=1, dim=latent_dim, ln=True, regularizer=reg_type, name='encoder_reshaper')
@@ -64,10 +90,10 @@ def encode(x, test=False):
         for i in range(num_blocks):
             res = (res
                    .sg_res_block(size=3, block=i, rate=1, is_first=True)
-                   .sg_res_block(size=3, block=i, rate=2,)
-                   .sg_res_block(size=3, block=i, rate=4,)
+                   .sg_res_block(size=3, block=i, rate=2, )
+                   .sg_res_block(size=3, block=i, rate=4, )
                    .sg_res_block(size=3, block=i, rate=8))
-#                  .sg_res_block(size=5, block=i, rate=16))
+            #                  .sg_res_block(size=5, block=i, rate=16))
 
     return res
 
@@ -83,18 +109,64 @@ def decode(x, num_classes, test=False, causal=False):
 
         # loop dilated causal conv block
         for i in range(num_blocks):
-            res = (res
-                   .sg_res_block(size=8, block=i, rate=1, causal=causal, is_first=True)
-                   .sg_res_block(size=8, block=i, rate=2, causal=causal)
-                   .sg_res_block(size=8, block=i, rate=4, causal=causal)
-                   .sg_res_block(size=5, block=i, rate=8, causal=causal)
-                   .sg_res_block(size=5, block=i, rate=16, causal=causal))
+            res = (res.sg_res_block(size=3, block=i, rates=[1, 2, 4, 8], causal=causal, dout=dropout, is_first=i == 0))
 
         in_dim = res.get_shape().as_list()[-1]
-        res = res.sg_conv1d(size=1, dim=in_dim, dout=dropout, act='relu', ln=True, regularizer=reg_type, name='conv_dout_final')
+        res = res.sg_conv1d(size=1, dim=in_dim, dout=dropout, act='relu', ln=True, regularizer=reg_type,
+                            name='conv_dout_final')
 
         # final fully convolution layer for softmax
-        res = res.sg_conv1d(size=1, dim=num_classes, ln=True, regularizer=reg_type, name='conv_relu_final')
+        res = res.sg_conv1d(size=1, dim=num_classes, act='relu', ln=True, regularizer=reg_type, name='conv_relu_final')
+
+    return res
+
+
+@tf.sg_sugar_func
+def ner_cost(tensor, opt):
+    cross_entropy = tf.one_hot(opt.target, opt.num_classes, dtype=tf.float32) * tf.log(tensor.sg_softmax())
+    cross_entropy = -tf.reduce_sum(cross_entropy, reduction_indices=2)
+
+    mask = tf.sign(tf.abs(opt.target))
+    cross_entropy *= tf.cast(mask, tf.float32)
+    cross_entropy = tf.reduce_sum(cross_entropy, reduction_indices=1)
+
+    length = tf.cast(tf.reduce_sum(tf.sign(opt.target), reduction_indices=1), tf.int32)
+    cross_entropy /= tf.cast(length, tf.float32)
+
+    out = tf.reduce_mean(cross_entropy, name='ner_cost')
+
+    # add summary
+    tf.sg_summary_loss(out, name=opt.name)
+
+    return out
+
+
+tf.sg_inject_func(ner_cost)
+
+
+def lstm_cell(is_test):
+    dropout = 0 if is_test else default_dout
+    keep_prob = 1 - dropout
+
+    cell = tf.nn.rnn_cell.LSTMCell(latent_dim, state_is_tuple=True)
+    cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=keep_prob)
+
+    return cell
+
+
+def rnn_model(x, num_classes, is_test=False):
+    with tf.sg_context(name='rnn_model'):
+        fw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell(is_test) for _ in range(num_blocks)], state_is_tuple=True)
+        bw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell(is_test) for _ in range(num_blocks)], state_is_tuple=True)
+
+        words_used_in_sent = tf.sign(tf.reduce_max(tf.abs(x), reduction_indices=2))
+        length = tf.cast(tf.reduce_sum(words_used_in_sent, reduction_indices=1), tf.int32)
+
+        outputs, _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, x, dtype=tf.float32, sequence_length=length)
+        output = tf.concat(outputs, 2).sg_reshape(shape=[-1, 2 * latent_dim])
+
+        prediction = output.sg_dense(dim=num_classes, name='dense')
+        res = tf.reshape(prediction, [x.get_shape().as_list()[0], -1, num_classes])
 
     return res
 

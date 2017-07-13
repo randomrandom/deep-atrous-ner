@@ -18,6 +18,7 @@ def classifier_train(**kwargs):
         lr: A Python Scalar (optional). Learning rate. Default is .001.
         beta1: A Python Scalar (optional). Default is .9.
         beta2: A Python Scalar (optional). Default is .99.
+        clip_grad_norm : A Python Scalar (optional). Default is 10
 
         save_dir: A string. The root path to which checkpoint and log files are saved.
           Default is `asset/train`.
@@ -44,11 +45,11 @@ def classifier_train(**kwargs):
     assert opt.loss is not None, 'loss is mandatory.'
 
     # default training options
-    opt += tf.sg_opt(optim='MaxProp', lr=0.001, beta1=0.9, beta2=0.99, category='', ep_size=100000)
+    opt += tf.sg_opt(optim='MaxProp', lr=0.001, beta1=0.9, beta2=0.99, category='', ep_size=100000, clip_grad_norm=10)
 
     # get optimizer
-    train_op = tf.sg_optim(opt.loss, optim=opt.optim, lr=0.001,
-                           beta1=opt.beta1, beta2=opt.beta2, category=opt.category)
+    train_op = sg_optim(opt.loss, optim=opt.optim, lr=0.001, clip_grad_norm=opt.clip_grad_norm,
+                        beta1=opt.beta1, beta2=opt.beta2, category=opt.category)
 
     # for console logging
     loss_ = opt.loss
@@ -65,6 +66,94 @@ def classifier_train(**kwargs):
 
     # run train function
     train_func(**opt)
+
+
+def sg_optim(loss, **kwargs):
+    r"""Applies gradients to variables.
+    Args:
+        loss: A 0-D `Tensor` containing the value to minimize. list of 0-D tensor for Multiple GPU
+        kwargs:
+          optim: A name for optimizer. 'MaxProp' (default), 'AdaMax', 'Adam', 'RMSProp' or 'sgd'.
+          lr: A Python Scalar (optional). Learning rate. Default is .001.
+          beta1: A Python Scalar (optional). Default is .9.
+          beta2: A Python Scalar (optional). Default is .99.
+          momentum : A Python Scalar for RMSProp optimizer (optional). Default is 0.
+          category: A string or string list. Specifies the variables that should be trained (optional).
+            Only if the name of a trainable variable starts with `category`, it's value is updated.
+            Default is '', which means all trainable variables are updated.
+    """
+    opt = tf.sg_opt(kwargs)
+
+    # default training options
+    opt += tf.sg_opt(optim='MaxProp', lr=0.001, beta1=0.9, beta2=0.99, momentum=0., category='')
+
+    # select optimizer
+    if opt.optim == 'MaxProp':
+        optim = tf.sg_optimize.MaxPropOptimizer(learning_rate=opt.lr, beta2=opt.beta2)
+    elif opt.optim == 'AdaMax':
+        optim = tf.sg_optimize.AdaMaxOptimizer(learning_rate=opt.lr, beta1=opt.beta1, beta2=opt.beta2)
+    elif opt.optim == 'Adam':
+        optim = tf.train.AdamOptimizer(learning_rate=opt.lr, beta1=opt.beta1, beta2=opt.beta2)
+    elif opt.optim == 'RMSProp':
+        optim = tf.train.RMSPropOptimizer(learning_rate=opt.lr, decay=opt.beta1, momentum=opt.momentum)
+    else:
+        optim = tf.train.GradientDescentOptimizer(learning_rate=opt.lr)
+
+    # get trainable variables
+    if isinstance(opt.category, (tuple, list)):
+        var_list = []
+        for cat in opt.category:
+            var_list.extend([t for t in tf.trainable_variables() if t.name.startswith(cat)])
+    else:
+        var_list = [t for t in tf.trainable_variables() if t.name.startswith(opt.category)]
+
+    #
+    # calc gradient
+    #
+
+    # multiple GPUs case
+    if isinstance(loss, (tuple, list)):
+        gradients = []
+        # loop for each GPU tower
+        for i, loss_ in enumerate(loss):
+            # specify device
+            with tf.device('/gpu:%d' % i):
+                # give new scope only to operation
+                with tf.name_scope('gpu_%d' % i):
+                    # add gradient calculation operation for each GPU tower
+                    gradients.append(tf.gradients(loss_, var_list))
+
+        # averaging gradient
+        gradient = []
+        for grad in zip(*gradients):
+            gradient.append(tf.add_n(grad) / len(loss))
+    # single GPU case
+    else:
+        gradient = tf.gradients(loss, var_list)
+
+    gradient, _ = tf.clip_by_global_norm(gradient, opt.clip_grad_norm)
+
+    # gradient update op
+    with tf.device('/gpu:0'):
+        grad_var = [(g, v) for g, v in zip(gradient, var_list)]
+        grad_op = optim.apply_gradients(grad_var, global_step=tf.sg_global_step())
+
+    # add summary using last tower value
+    for g, v in grad_var:
+        # exclude batch normal statics
+        if 'mean' not in v.name and 'variance' not in v.name \
+                and 'beta' not in v.name and 'gamma' not in v.name:
+            tf.sg_summary_gradient(v, g)
+
+    # extra update ops within category ( for example, batch normal running stat update )
+    if isinstance(opt.category, (tuple, list)):
+        update_op = []
+        for cat in opt.category:
+            update_op.extend([t for t in tf.get_collection(tf.GraphKeys.UPDATE_OPS) if t.name.startswith(cat)])
+    else:
+        update_op = [t for t in tf.get_collection(tf.GraphKeys.UPDATE_OPS) if t.name.startswith(opt.category)]
+
+    return tf.group(*([grad_op] + update_op))
 
 
 def sg_train_func(func):

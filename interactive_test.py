@@ -7,7 +7,6 @@ BATCH_SIZE = 1
 
 BUCKETS = [5, 10, 15, 20, 30]
 DATA_FILE = ['./data/datasets/conll_2003/eng.train']
-NUM_LABELS = 9
 
 data = ConllLoader(BUCKETS, DATA_FILE, used_for_test_data=True, batch_size=BATCH_SIZE)
 
@@ -33,7 +32,7 @@ else:
     word_emb = tf.sg_emb(name=word_embedding_name, voca_size=data.vocabulary_size, dim=embedding_dim)
     pos_emb = tf.sg_emb(name='pos_emb', voca_size=46, dim=5)
     chunk_emb = tf.sg_emb(name='chunk_emb', voca_size=18, dim=2)
-    # entities_emb = tf.sg_emb(name='entities_emb', voca_size=NUM_LABELS, dim=2)
+    # entities_emb = tf.sg_emb(name='entities_emb', voca_size=num_labels, dim=2)
 
 # data.visualize_embeddings(sess, word_emb, word_embedding_name)
 
@@ -46,7 +45,7 @@ with tf.sg_context(name='model'):
     # we concatenated all inputs into one single input vector
     z_i = tf.concat([z_w, z_p, z_c], 2)
 
-    classifier = decode(z_i, NUM_LABELS, data.vocabulary_size)
+    classifier = decode(z_i, num_labels, data.vocabulary_size)
 
 score = classifier.sg_argmax(axis=2)
 entities = data.reverse_table.lookup(score)

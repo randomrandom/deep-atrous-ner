@@ -89,7 +89,7 @@ class BasePreprocessor(object):
         print('Saved vocabulary to metadata file')
         pd.DataFrame(metadata[word_column]).to_csv(self.path + self.VOCABULARY_PREFIX + self.filename,
                                                    sep=self.separator, index=False, header=False,
-                                                   quoting=csv.QUOTE_NONE, encoding='utf-8')
+                                                   encoding='utf-8')
         print('Saved vocabulary to vocabulary file')
 
         self._build_vocabulary_on_column(data, self.VOCABULARY_ENTITY + self.filename, entity_column, word_column,
