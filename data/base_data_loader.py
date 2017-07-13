@@ -55,6 +55,7 @@ class BaseDataLoader(object):
         self.save_dir = save_dir
         self.table = table
         self.reverse_table = None
+        self.reverse_table_entity = None
         self.table_chunk = table_chunk
         self.table_pos = table_pos
         self.table_entity = table_entity
@@ -156,8 +157,11 @@ class BaseDataLoader(object):
                 num_oov_buckets=0)
 
         if self._used_for_test_data:
-            print('Rever vocabulary table is needed => creating it')
+            print('Reverse vocabulary is needed => creating it')
             self.reverse_table = tf.contrib.lookup.index_to_string_table_from_file(
+                vocabulary_file=voca_path + voca_name)
+            print('Reverse entity vocabulary is needed => creating it')
+            self.reverse_table_entity = tf.contrib.lookup.index_to_string_table_from_file(
                 vocabulary_file=voca_path + self._TABLE_ENTITY + voca_suffix)
 
         # convert to tensor of strings

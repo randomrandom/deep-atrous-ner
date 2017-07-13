@@ -48,7 +48,7 @@ with tf.sg_context(name='model'):
     classifier = decode(z_i, num_labels, data.vocabulary_size)
 
 score = classifier.sg_argmax(axis=2)
-entities = data.reverse_table.lookup(score)
+entities = data.reverse_table_entity.lookup(score)
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
 

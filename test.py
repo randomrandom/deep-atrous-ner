@@ -31,7 +31,6 @@ if use_pre_trained_embeddings:
 else:
     word_emb = tf.sg_emb(name=word_embedding_name, voca_size=data.vocabulary_size, dim=embedding_dim)
 
-
 with tf.sg_context(name='model'):
     z_w = test.source_words.sg_lookup(emb=word_emb)
     z_p = tf.one_hot(test.source_pos, depth=num_pos)
@@ -41,12 +40,13 @@ with tf.sg_context(name='model'):
     # we concatenated all inputs into one single input vector
     z_i = tf.concat([z_w, z_p, z_c, z_cap], 2)
 
-    #classifier = rnn_model(z_i, num_labels, is_test=True)
-    classifier = decode(z_i, num_labels, test=True)
+    classifier = rnn_model(z_i, num_labels, is_test=True)
+    #classifier = decode(z_i, num_labels, test=True)
 
     # calculating precision, recall and f-1 score (more relevant than accuracy)
     predictions = classifier.sg_argmax(axis=2)
-    entities = data.reverse_table.lookup(predictions)
+    words = data.reverse_table.lookup(test.source_words)
+    entities = data.reverse_table_entity.lookup(predictions)
     one_hot_predictions = tf.one_hot(predictions, num_labels, dtype=tf.float64)
     one_hot_labels = tf.one_hot(test.entities, num_labels, dtype=tf.int64)
 
@@ -71,23 +71,33 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         all_true = []
         all_predicted = []
         for i in tqdm(range(0, EPOCHS * test.data_size // BATCH_SIZE)):
-            entities_sample, predictions_sample, _, __ = sess.run([test.entities, predictions, precision_op, recall_op])
+            words_sample, word_entities_sample, entities_sample, predictions_sample, _, __ = sess.run(
+                [words, entities, test.entities, predictions, precision_op, recall_op])
 
             all_true.extend(entities_sample.flatten())
             all_predicted.extend(predictions_sample.flatten())
 
             if i < DEBUG_SHOW:
+                print('\nExample:')
+                print(words_sample)
+                print(word_entities_sample)
                 print(entities_sample)
-                print('Predictions')
+                print('Predictions:')
                 print(predictions_sample)
 
         first_class = 1
-        s_prec = metrics.precision_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average=None)
-        s_prec_stat = metrics.precision_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average='micro')
-        s_rec = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average=None)
-        s_rec_stat = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average='micro')
-        s_f1 = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average=None)
-        s_f1_stat = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)], average='micro')
+        s_prec = metrics.precision_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)],
+                                         average=None)
+        s_prec_stat = metrics.precision_score(all_true, all_predicted,
+                                              labels=[i for i in range(first_class, num_labels)], average='micro')
+        s_rec = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)],
+                                     average=None)
+        s_rec_stat = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)],
+                                          average='micro')
+        s_f1 = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)],
+                                average=None)
+        s_f1_stat = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, num_labels)],
+                                     average='micro')
         s_confusion = metrics.confusion_matrix(all_true, all_predicted)
 
         print(s_prec)
