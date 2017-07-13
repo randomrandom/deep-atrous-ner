@@ -31,6 +31,7 @@ if use_pre_trained_embeddings:
 else:
     word_emb = tf.sg_emb(name=word_embedding_name, voca_size=data.vocabulary_size, dim=embedding_dim)
 
+
 with tf.sg_context(name='model'):
     z_w = test.source_words.sg_lookup(emb=word_emb)
     z_p = tf.one_hot(test.source_pos, depth=num_pos)
@@ -46,7 +47,7 @@ with tf.sg_context(name='model'):
     # calculating precision, recall and f-1 score (more relevant than accuracy)
     predictions = classifier.sg_argmax(axis=2)
     entities = data.reverse_table.lookup(predictions)
-    one_hot_predictions = classifier
+    one_hot_predictions = tf.one_hot(predictions, num_labels, dtype=tf.float64)
     one_hot_labels = tf.one_hot(test.entities, num_labels, dtype=tf.int64)
 
     precision, precision_op = tf.contrib.metrics.streaming_sparse_average_precision_at_k(one_hot_predictions,

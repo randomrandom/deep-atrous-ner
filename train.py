@@ -17,14 +17,11 @@ validation = ConllLoader(BUCKETS, TEST_FILES, batch_size=BATCH_SIZE, table=data.
 words, pos = tf.split(data.source_words, tf.sg_gpus()), tf.split(data.source_pos, tf.sg_gpus())
 chunks, capitals = tf.split(data.source_chunk, tf.sg_gpus()), tf.split(data.source_capitals, tf.sg_gpus())
 entities = tf.split(data.entities, tf.sg_gpus())
-# decoder_in = tf.split(tf.concat([tf.zeros((BATCH_SIZE, 1), tf.int64), data.entities[:, :-1]], axis=1), tf.sg_gpus())
 
 val_words, val_pos = tf.split(validation.source_words, tf.sg_gpus()), tf.split(validation.source_pos, tf.sg_gpus())
 val_chunks, val_capitals = tf.split(validation.source_chunk, tf.sg_gpus()), tf.split(validation.source_capitals,
                                                                                      tf.sg_gpus())
 val_entities = tf.split(validation.entities, tf.sg_gpus())
-# val_decoder_in = tf.split(tf.concat([tf.zeros((BATCH_SIZE, 1), tf.int64), validation.entities[:, :-1]], axis=1),
-#                           tf.sg_gpus())
 
 # session with multiple GPU support
 sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
@@ -41,9 +38,6 @@ if use_pre_trained_embeddings:
     word_emb = init_custom_embeddings(name=word_embedding_name, embeddings_matrix=embedding_matrix, trainable=True)
 else:
     word_emb = tf.sg_emb(name=word_embedding_name, voca_size=data.vocabulary_size, dim=embedding_dim)
-    # pos_emb = tf.sg_emb(name='pos_emb', voca_size=46, dim=8)
-    # chunk_emb = tf.sg_emb(name='chunk_emb', voca_size=18, dim=4)
-    # entities_emb = tf.sg_emb(name='entities_emb', voca_size=num_labels, dim=4)
 
 
 # data.visualize_embeddings(sess, word_emb, word_embedding_name)
@@ -63,11 +57,11 @@ def get_train_loss(opt):
         labels = opt.entities[opt.gpu_index]
 
         train_classifier = rnn_model(z_i, num_labels)
-        #train_classifier = decode(z_i, num_labels)
+        # train_classifier = decode(z_i, num_labels)
 
         # cross entropy loss with logit
         loss = train_classifier.ner_cost(target=labels, num_classes=num_labels)
-        #loss = train_classifier.sg_ce(target=labels, mask=True)
+        # loss = train_classifier.sg_ce(target=labels, mask=True)
 
         return loss
 
@@ -88,7 +82,7 @@ def get_val_metrics(opt):
         labels = opt.entities[opt.gpu_index]
 
         test_classifier = rnn_model(v_i, num_labels, is_test=True)
-        #test_classifier = decode(v_i, num_labels, test=True)
+        # test_classifier = decode(v_i, num_labels, test=True)
 
         # accuracy evaluation (validation set)
         acc = test_classifier.sg_softmax().sg_accuracy(target=labels, name='accuracy')
@@ -108,7 +102,7 @@ def get_val_metrics(opt):
 
         # validation loss
         val_loss = test_classifier.ner_cost(target=labels, mask=True, num_classes=num_labels, name='val_loss')
-        #val_loss = test_classifier.sg_ce(target=labels, mask=True, name='val_loss')
+        # val_loss = test_classifier.sg_ce(target=labels, mask=True, name='val_loss')
 
         return acc, val_loss, precision_op, recall_op, f1_score
 

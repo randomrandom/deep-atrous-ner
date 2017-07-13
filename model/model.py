@@ -17,7 +17,7 @@ embedding_dim = 300  # 300 # embedding dimension
 latent_dim = 256  # 256 # hidden layer dimension
 num_blocks = 2  # 2 # dilated blocks
 reg_type = 'l2'  # type of regularization used
-default_dout = 0.3  # define the default dropout rate
+default_dout = 0.5  # define the default dropout rate
 use_pre_trained_embeddings = False  # whether to use pre-trained embedding vectors
 pre_trained_embeddings_file = EMBEDDINGS_DIR + GLOVE_6B_300d_EMBEDDINGS  # the location of the pre-trained embeddings
 num_labels = 6
@@ -78,27 +78,6 @@ def sg_res_block(tensor, opt):
 tf.sg_inject_func(sg_res_block)
 
 
-#
-# encode graph ( atrous convolution )
-#
-def encode(x, test=False):
-    with tf.sg_context(name='encoder'):
-        dropout = 0 if test else default_dout
-        res = x.sg_conv1d(size=1, dim=latent_dim, ln=True, regularizer=reg_type, name='encoder_reshaper')
-
-        # loop dilated conv block
-        for i in range(num_blocks):
-            res = (res
-                   .sg_res_block(size=3, block=i, rate=1, is_first=True)
-                   .sg_res_block(size=3, block=i, rate=2, )
-                   .sg_res_block(size=3, block=i, rate=4, )
-                   .sg_res_block(size=3, block=i, rate=8))
-            #                  .sg_res_block(size=5, block=i, rate=16))
-
-    return res
-
-
-#
 # cnn decode graph ( causal convolution )
 #
 
