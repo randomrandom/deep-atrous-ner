@@ -1,5 +1,4 @@
 from data.conll_loader import ConllLoader
-from data.preprocessors.base_preprocessor import BasePreprocessor
 from model.model import *
 from model.trainer import classifier_train
 
@@ -66,11 +65,11 @@ def get_train_loss(opt):
     with tf.sg_context(name='model'):
         labels = opt.entities[opt.gpu_index]
 
-        #train_classifier = rnn_model(opt.z_i[opt.gpu_index], num_labels)
+        # train_classifier = rnn_model(opt.z_i[opt.gpu_index], num_labels)
         train_classifier = decode(opt.z_i[opt.gpu_index], num_labels)
 
         # cross entropy loss with logit
-        #loss = train_classifier.ner_cost(target=labels, num_classes=num_labels)
+        # loss = train_classifier.ner_cost(target=labels, num_classes=num_labels)
         loss = train_classifier.sg_ce(target=labels, mask=True)
 
         return loss
@@ -83,7 +82,7 @@ def get_val_metrics(opt):
 
         labels = opt.entities[opt.gpu_index]
 
-        #test_classifier = rnn_model(opt.v_i[opt.gpu_index], num_labels, is_test=True)
+        # test_classifier = rnn_model(opt.v_i[opt.gpu_index], num_labels, is_test=True)
         test_classifier = decode(opt.v_i[opt.gpu_index], num_labels, test=True)
 
         # accuracy evaluation (validation set)
@@ -106,7 +105,7 @@ def get_val_metrics(opt):
         f1_score = (2 * (precision_op * recall_op)) / (precision_op + recall_op)
 
         # validation loss
-        #val_loss = test_classifier.ner_cost(target=labels, mask=True, num_classes=num_labels, name='val_loss')
+        # val_loss = test_classifier.ner_cost(target=labels, mask=True, num_classes=num_labels, name='val_loss')
         val_loss = test_classifier.sg_ce(target=labels, mask=True, name='val_loss')
 
         return acc, val_loss, precision_op, recall_op, f1_score

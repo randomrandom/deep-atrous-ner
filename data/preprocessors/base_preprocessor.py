@@ -21,7 +21,7 @@ class BasePreprocessor(object):
     _UNK_TOKEN = '<UNK>'
     _EOS_TOKEN = '<EOS>'
 
-    DEFAULT_METADATA_DIR = 'asset/train/'
+    DEFAULT_SAVE_DIR = 'asset/train/'
 
     def __init__(self, path, filename, separator, vocabulary_size, max_data_length, pad_token=_PAD_TOKEN,
                  unk_token=_UNK_TOKEN, eos_token=_EOS_TOKEN):
@@ -149,6 +149,7 @@ class BasePreprocessor(object):
 
     def _regex_preprocess(self, entry):
         entry = self._remove_digits.sub('reg_digitz', entry)
+        entry = entry.replace('"', 'reg_quotes')
 
         return entry
 

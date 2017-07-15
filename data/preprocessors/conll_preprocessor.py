@@ -1,3 +1,4 @@
+import csv
 from pathlib import Path
 
 import pandas as pd
@@ -95,7 +96,7 @@ class ConllPreprocessor(BasePreprocessor):
         self.data_size = len(self.data)
 
         preprocessed_file = self.path + self.CLEAN_PREFIX + self.filename
-        self.new_data.to_csv(preprocessed_file, sep=self.separator, index=False)
+        self.new_data.to_csv(preprocessed_file, sep=self.separator, index=False, quoting=csv.QUOTE_NONE)
 
         print('Successfully saved preprocessed file: %s' % preprocessed_file)
 

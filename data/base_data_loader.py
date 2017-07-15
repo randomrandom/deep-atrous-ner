@@ -29,11 +29,12 @@ class BaseDataLoader(object):
     DEFAULT_PRETRAINED_EMBEDDINGS = 'model/embeddings/glove.6B.300d.txt'
 
     DEFAULT_META_DATA_FILE = 'metadata.tsv'
-    DEFAULT_METADATA_DIR = BasePreprocessor.DEFAULT_METADATA_DIR
+    DEFAULT_META_DATA_DIR = 'data/datasets/conll_2003/'
+    DEFAULT_SAVE_DIR = BasePreprocessor.DEFAULT_SAVE_DIR
 
     def __init__(self, record_defaults, field_delim, data_column, bucket_boundaries, file_names,
                  skip_header_lines=_DEFAULT_SKIP_HEADER_LINES, num_threads=_num_threads, batch_size=_batch_size,
-                 used_for_test_data=False, meta_file=DEFAULT_META_DATA_FILE, save_dir=DEFAULT_METADATA_DIR, table=None,
+                 used_for_test_data=False, meta_file=DEFAULT_META_DATA_FILE, save_dir=DEFAULT_SAVE_DIR, table=None,
                  table_pos=None, table_chunk=None, table_entity=None, name=_name):
         self.__file_names = file_names
         self.__field_delim = field_delim
@@ -250,7 +251,7 @@ class BaseDataLoader(object):
         :return: the loaded pre-trained embeddings
         """
 
-        pre_trained_emb = np.random.uniform(-0.05, 0.05, (self.vocabulary_size, embed_dim))
+        pre_trained_emb = np.random.uniform(-0.1, 0.1, (self.vocabulary_size, embed_dim))
         with open(file_name, 'r', encoding='utf-8') as emb_file:
             mapped_words = 0
             dictionary = ConllPreprocessor.read_vocabulary(self.__vocabulary_file, self.__field_delim)
@@ -281,6 +282,8 @@ class BaseDataLoader(object):
             # TODO: should do some updates in voca_size if mapped words are less, currently missing words are random embeddings which are not going to be trained
             # assert mapped_words == self.VOCABULARY_SIZE, 'Glove mapping should equal to the vocabulary size'
 
+        pre_trained_emb[dictionary[BasePreprocessor._PAD_TOKEN]] = [0] * embed_dim
+
         print('Loaded pre-trained embeddings')
 
         return pre_trained_emb
@@ -305,6 +308,6 @@ class BaseDataLoader(object):
         config = projector.ProjectorConfig()
         emb = config.embeddings.add()
         emb.tensor_name = name  # tensor
-        emb.metadata_path = tf.os.path.join(self.save_dir, self.meta_file)  # metadata file
+        emb.metadata_path = tf.os.path.join(self.DEFAULT_META_DATA_DIR, self.meta_file)  # metadata file
         print(tf.os.path.abspath(emb.metadata_path))
         projector.visualize_embeddings(summary_writer, config)

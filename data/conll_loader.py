@@ -12,7 +12,7 @@ class ConllLoader(BaseDataLoader):
     DATA_COLUMN = ConllPreprocessor.EXAMPLE_COLUMN
 
     DEFAULT_META_DATA_FILE = 'metadata_eng.train'
-    DEFAULT_METADATA_DIR = 'data/datasets/conll_2003/'
+    DEFAULT_SAVE_DIR = 'asset/train'
 
     def __init__(self, bucket_boundaries, file_names, *args, **kwargs):
         self._file_preprocessor = None
@@ -26,7 +26,7 @@ class ConllLoader(BaseDataLoader):
 
         super().__init__(record_defaults, self.field_delim, data_column, bucket_boundaries, file_names, *args,
                          skip_header_lines=skip_header_lines, meta_file=ConllLoader.DEFAULT_META_DATA_FILE,
-                         save_dir=ConllLoader.DEFAULT_METADATA_DIR, **kwargs)
+                         save_dir=ConllLoader.DEFAULT_SAVE_DIR, **kwargs)
 
         self.source_words, self.source_pos, self.source_chunk, self.source_capitals, self.entities = self.get_data()
 
