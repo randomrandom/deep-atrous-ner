@@ -5,6 +5,7 @@ import numpy as np
 import sugartensor as tf
 from tensorflow.contrib.tensorboard.plugins import projector
 
+from data.preprocessors.base_preprocessor import BasePreprocessor
 from data.preprocessors.conll_preprocessor import ConllPreprocessor
 
 __author__ = 'george.val.stoyan0v@gmail.com'
@@ -14,7 +15,7 @@ class BaseDataLoader(object):
     _CSV_DELIM = ","
     _DEFAULT_SKIP_HEADER_LINES = 0
     _name = "data_loader"
-    _num_threads = 2  # 32
+    _num_threads = 32  # 32
     _batch_size = 16  # 64
     _min_after_dequeue = _batch_size * _num_threads
     _capacity = _min_after_dequeue + (_num_threads + 2) * _batch_size  # as recommended in tf tutorial
@@ -23,20 +24,17 @@ class BaseDataLoader(object):
     _TABLE_CHUNK = ConllPreprocessor.VOCABULARY_PREFIX + ConllPreprocessor.VOCABULARY_CHUNK
     _TABLE_ENTITY = ConllPreprocessor.VOCABULARY_PREFIX + ConllPreprocessor.VOCABULARY_ENTITY
 
-    DEFAULT_TEST_SPLIT = .1
     DEFAULT_MAX_DATA_LENGTH = 240
     DEFAULT_VOCABULARY_SIZE = 50000
-    DEFAULT_PRETRAINED_EMBEDDINGS = 'data/embeddings/glove.6B.300d.txt'
+    DEFAULT_PRETRAINED_EMBEDDINGS = 'model/embeddings/glove.6B.300d.txt'
 
     DEFAULT_META_DATA_FILE = 'metadata.tsv'
-    DEFAULT_METADATA_DIR = 'asset/train/'
+    DEFAULT_METADATA_DIR = BasePreprocessor.DEFAULT_METADATA_DIR
 
     def __init__(self, record_defaults, field_delim, data_column, bucket_boundaries, file_names,
-                 skip_header_lines=_DEFAULT_SKIP_HEADER_LINES,
-                 num_threads=_num_threads, batch_size=_batch_size, min_after_dequeue=_min_after_dequeue,
-                 capacity=_capacity, used_for_test_data=False, meta_file=DEFAULT_META_DATA_FILE,
-                 save_dir=DEFAULT_METADATA_DIR, table=None, table_pos=None, table_chunk=None, table_entity=None,
-                 name=_name):
+                 skip_header_lines=_DEFAULT_SKIP_HEADER_LINES, num_threads=_num_threads, batch_size=_batch_size,
+                 used_for_test_data=False, meta_file=DEFAULT_META_DATA_FILE, save_dir=DEFAULT_METADATA_DIR, table=None,
+                 table_pos=None, table_chunk=None, table_entity=None, name=_name):
         self.__file_names = file_names
         self.__field_delim = field_delim
         self.__record_defaults = record_defaults
@@ -46,9 +44,10 @@ class BaseDataLoader(object):
         self.__vocabulary_file = None
 
         self._used_for_test_data = used_for_test_data
-        self._min_after_dequeue = min_after_dequeue
+        self.num_threads = num_threads
         self._batch_size = batch_size
-        self._capacity = capacity
+        self._min_after_dequeue = self._batch_size * self.num_threads
+        self._capacity = self._min_after_dequeue + (self.num_threads + 2) * self._batch_size
         self._name = name
 
         self.meta_file = meta_file
@@ -59,7 +58,6 @@ class BaseDataLoader(object):
         self.table_chunk = table_chunk
         self.table_pos = table_pos
         self.table_entity = table_entity
-        self.num_threads = num_threads
         self.vocabulary_size = 0
         self.train_size = 0
         self.test_size = 0
@@ -255,9 +253,9 @@ class BaseDataLoader(object):
         pre_trained_emb = np.random.uniform(-0.05, 0.05, (self.vocabulary_size, embed_dim))
         with open(file_name, 'r', encoding='utf-8') as emb_file:
             mapped_words = 0
-
             dictionary = ConllPreprocessor.read_vocabulary(self.__vocabulary_file, self.__field_delim)
             missing_words = dictionary.copy()
+            invalid_words = 0
 
             for line in emb_file.readlines():
                 row = line.strip().split(' ')
@@ -268,10 +266,16 @@ class BaseDataLoader(object):
                     'Embedding dimension should be same as the one in the pre-trained embeddings.'
 
                 if word in dictionary:
+                    vector = np.array([float(val) for val in row[1:]])
+                    if len(vector) != embed_dim:
+                        invalid_words += 1
+                        continue
+
                     mapped_words = mapped_words + 1
-                    pre_trained_emb[dictionary[word] - 1] = row[1:]
+                    pre_trained_emb[dictionary[word]] = vector
                     del missing_words[word]
 
+            print('Invalid words count: %d' % invalid_words)
             print('Mapped words to pre-trained embeddings: %d' % mapped_words)
 
             # TODO: should do some updates in voca_size if mapped words are less, currently missing words are random embeddings which are not going to be trained

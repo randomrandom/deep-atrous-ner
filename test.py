@@ -46,7 +46,7 @@ with tf.sg_context(name='model'):
     # calculating precision, recall and f-1 score (more relevant than accuracy)
     predictions = classifier.sg_argmax(axis=2)
     words = data.reverse_table.lookup(test.source_words)
-    entities = data.reverse_table_entity.lookup(predictions)
+    entities = data.reverse_table_entity.lookup(test.entities)
     one_hot_predictions = tf.one_hot(predictions, num_labels, dtype=tf.float64)
     one_hot_labels = tf.one_hot(test.entities, num_labels, dtype=tf.int64)
 

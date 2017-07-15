@@ -11,7 +11,7 @@ class ConllLoader(BaseDataLoader):
     TSV_DELIM = '\t'
     DATA_COLUMN = ConllPreprocessor.EXAMPLE_COLUMN
 
-    DEFAULT_META_DATA_FILE = 'metadata_labeledTrainData.tsv'
+    DEFAULT_META_DATA_FILE = 'metadata_eng.train'
     DEFAULT_METADATA_DIR = 'data/datasets/conll_2003/'
 
     def __init__(self, bucket_boundaries, file_names, *args, **kwargs):
