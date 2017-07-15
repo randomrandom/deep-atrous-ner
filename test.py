@@ -31,17 +31,17 @@ if use_pre_trained_embeddings:
 else:
     word_emb = tf.sg_emb(name=word_embedding_name, voca_size=data.vocabulary_size, dim=embedding_dim)
 
+z_w = test.source_words.sg_lookup(emb=word_emb)
+z_p = tf.one_hot(test.source_pos, depth=num_pos)
+z_c = tf.one_hot(test.source_chunk, depth=num_chunk)
+z_cap = test.source_capitals.sg_cast(dtype=tf.float32)
+
+# we concatenated all inputs into one single input vector
+z_i = tf.concat([z_w, z_p, z_c, z_cap], 2)
+
 with tf.sg_context(name='model'):
-    z_w = test.source_words.sg_lookup(emb=word_emb)
-    z_p = tf.one_hot(test.source_pos, depth=num_pos)
-    z_c = tf.one_hot(test.source_chunk, depth=num_chunk)
-    z_cap = test.source_capitals.sg_cast(dtype=tf.float32)
-
-    # we concatenated all inputs into one single input vector
-    z_i = tf.concat([z_w, z_p, z_c, z_cap], 2)
-
     classifier = rnn_model(z_i, num_labels, is_test=True)
-    #classifier = decode(z_i, num_labels, test=True)
+    # classifier = decode(z_i, num_labels, test=True)
 
     # calculating precision, recall and f-1 score (more relevant than accuracy)
     predictions = classifier.sg_argmax(axis=2)

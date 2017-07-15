@@ -14,18 +14,6 @@ data = ConllLoader(BUCKETS, DATA_FILE, batch_size=BATCH_SIZE)
 validation = ConllLoader(BUCKETS, TEST_FILES, batch_size=BATCH_SIZE, table=data.table, table_pos=data.table_pos,
                          table_chunk=data.table_chunk, table_entity=data.table_entity)
 
-'''
-words, pos = tf.split(data.source_words, tf.sg_gpus()), tf.split(data.source_pos, tf.sg_gpus())
-chunks, capitals = tf.split(data.source_chunk, tf.sg_gpus()), tf.split(data.source_capitals, tf.sg_gpus())
-
-val_words, val_pos = tf.split(validation.source_words, tf.sg_gpus()), tf.split(validation.source_pos, tf.sg_gpus())
-val_chunks, val_capitals = tf.split(validation.source_chunk, tf.sg_gpus()), tf.split(validation.source_capitals,
-                                                                                     tf.sg_gpus())
-'''
-entities = tf.split(data.entities, tf.sg_gpus())
-
-val_entities = tf.split(validation.entities, tf.sg_gpus())
-
 # session with multiple GPU support
 sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
 
@@ -57,6 +45,9 @@ v_cap = validation.source_capitals.sg_cast(dtype=tf.float32)
 
 # we concatenated all inputs into one single input vector
 v_i = tf.split(tf.concat([v_w, v_p, v_c, v_cap], 2), tf.sg_gpus())
+
+entities = tf.split(data.entities, tf.sg_gpus())
+val_entities = tf.split(validation.entities, tf.sg_gpus())
 
 
 # setup the model for training and validation. Enable multi-GPU support
@@ -115,7 +106,7 @@ tf.sg_init(sess)
 data.visualize_embeddings(sess, word_emb, word_embedding_name)
 
 # train
-classifier_train(sess=sess, log_interval=30, lr=3e-2, clip_grad_norm=10, optim='Adam', save_interval=150,
+classifier_train(sess=sess, log_interval=30, lr=3e-3, clip_grad_norm=10, save_interval=150,
                  loss=get_train_loss(z_i=z_i, entities=entities)[0],
                  eval_metric=get_val_metrics(v_i=v_i, entities=val_entities)[0],
                  ep_size=data.num_batches, max_ep=150, early_stop=False)
