@@ -4,9 +4,9 @@ from model.trainer import classifier_train
 
 __author__ = 'georgi.val.stoyan0v@gmail.com'
 
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 
-BUCKETS = [20, 40, 80, 120, 180]
+BUCKETS = [20, 60, 80, 120, 180]
 DATA_FILE = ['./data/datasets/conll_2003/eng.train']
 TEST_FILES = ['./data/datasets/conll_2003/eng.testa']
 
@@ -60,8 +60,7 @@ def get_train_loss(opt):
         train_classifier = decode(opt.z_i[opt.gpu_index], num_labels)
 
         # cross entropy loss with logit
-        # loss = train_classifier.ner_cost(target=labels, num_classes=num_labels)
-        loss = train_classifier.sg_ce(target=labels, mask=True)
+        loss = train_classifier.ner_cost(target=labels, num_classes=num_labels)
 
         return loss
 
@@ -71,42 +70,26 @@ def get_val_metrics(opt):
     with tf.sg_context(name='model', reuse=True):
         tf.get_variable_scope().reuse_variables()
 
-        labels = opt.entities[opt.gpu_index]
+        val_labels = opt.entities[opt.gpu_index]
 
         # test_classifier = rnn_model(opt.v_i[opt.gpu_index], num_labels, is_test=True)
         test_classifier = decode(opt.v_i[opt.gpu_index], num_labels, test=True)
+        val_predictions = test_classifier.sg_argmax() + 1
 
         # accuracy evaluation (validation set)
-        acc = test_classifier.sg_softmax().sg_accuracy(target=labels, name='accuracy')
-
-        # calculating precision, recall and f-1 score (more relevant than accuracy)
-        predictions = test_classifier.sg_argmax(axis=2)
-        one_hot_predictions = tf.one_hot(predictions, num_labels, dtype=tf.float64)
-        one_hot_labels = tf.one_hot(labels, num_labels, dtype=tf.int64)
-
-        weights = tf.not_equal(labels, tf.zeros_like(labels)).sg_float()
-        precision, precision_op = tf.contrib.metrics.streaming_sparse_average_precision_at_k(one_hot_predictions,
-                                                                                             one_hot_labels, 1,
-                                                                                             weights=weights,
-                                                                                             name='val_precision')
-
-        recall, recall_op = tf.contrib.metrics.streaming_sparse_recall_at_k(one_hot_predictions, one_hot_labels, 1,
-                                                                            weights=weights, name='val_recall')
-
-        f1_score = (2 * (precision_op * recall_op)) / (precision_op + recall_op)
+        val_acc = test_classifier.ner_accuracy(target=val_labels, mask=True, name='accuracy')
 
         # validation loss
-        # val_loss = test_classifier.ner_cost(target=labels, mask=True, num_classes=num_labels, name='val_loss')
-        val_loss = test_classifier.sg_ce(target=labels, mask=True, name='val_loss')
+        val_loss = test_classifier.ner_cost(target=val_labels, num_classes=num_labels, name='val_loss')
 
-        return acc, val_loss, precision_op, recall_op, f1_score
+        return val_acc, val_loss, val_predictions, val_labels
 
 
 tf.sg_init(sess)
 data.visualize_embeddings(sess, word_emb, word_embedding_name)
 
 # train
-classifier_train(sess=sess, log_interval=30, lr=3e-3, clip_grad_norm=10, save_interval=150,
+classifier_train(sess=sess, log_interval=30, lr=3e-3, clip_grad_norm=10, optim='Adam', save_interval=150,
                  loss=get_train_loss(z_i=z_i, entities=entities)[0],
-                 eval_metric=get_val_metrics(v_i=v_i, entities=val_entities)[0],
-                 ep_size=data.num_batches, max_ep=150, early_stop=False)
+                 eval_metric=get_val_metrics(v_i=v_i, entities=val_entities)[0], ep_size=data.num_batches,
+                 val_ep_size=validation.num_batches, max_ep=150, early_stop=False)

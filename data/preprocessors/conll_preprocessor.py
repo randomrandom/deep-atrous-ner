@@ -1,5 +1,4 @@
 import csv
-from pathlib import Path
 
 import pandas as pd
 from tqdm import tqdm
@@ -19,9 +18,6 @@ class ConllPreprocessor(BasePreprocessor):
 
     def _custom_preprocessing(self, entry):
         return entry.lower()
-
-    def save_preprocessed_file(self):
-        pass
 
     def __read_from_raw_file(self, raw_file):
         number_of_lines = BasePreprocessor.get_line_number(raw_file)
@@ -73,27 +69,15 @@ class ConllPreprocessor(BasePreprocessor):
         return self.data
 
     def read_file(self):
-        print('Reading file')
-
         file_name = self.path + self.filename
 
-        print(self.path + self.CLEAN_PREFIX + self.filename)
-        processed_file = Path(self.path + self.CLEAN_PREFIX + self.filename)
-        print(processed_file)
-        if processed_file.exists():
-            print('File already exists, no need to recreate')
-
-            self.data = pd.read_csv(processed_file, sep=self.separator)
-        else:
-            self.data = self.__read_from_raw_file(file_name)
+        print('Reading file: {}'.format(file_name))
+        self.data = self.__read_from_raw_file(file_name)
 
         return self.data
 
     def save_preprocessed_file(self):
         assert self.new_data is not None, 'No preprocessing has been applied, did you call apply_preprocessing?'
-
-        data_size = self.new_data.shape[0]
-        self.data_size = len(self.data)
 
         preprocessed_file = self.path + self.CLEAN_PREFIX + self.filename
         self.new_data.to_csv(preprocessed_file, sep=self.separator, index=False, quoting=csv.QUOTE_NONE)

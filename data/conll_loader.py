@@ -29,9 +29,7 @@ class ConllLoader(BaseDataLoader):
                          save_dir=ConllLoader.DEFAULT_SAVE_DIR, **kwargs)
 
         self.source_words, self.source_pos, self.source_chunk, self.source_capitals, self.entities = self.get_data()
-
-        data_size = self.data_size
-        self.num_batches = data_size // self._batch_size
+        self.num_batches = self.data_size // self._batch_size
 
     def build_eval_graph(self, words, pos, chunks, capitals):
 

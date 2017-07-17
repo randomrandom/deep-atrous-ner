@@ -106,29 +106,28 @@ class BasePreprocessor(object):
                                              frequency_column)
 
     def save_preprocessed_file(self):
-        assert self.new_data is not None, 'No preprocessing has been applied, did you call apply_preprocessing?'
+        raise NotImplementedError
 
-        data_size = self.new_data.shape[0]
-        self.data_size = (int)(data_size * (1 - self.test_split))
-        self.test_size = data_size - self.data_size
+    def restore_vocabulary_size(self):
+        dictionary = pd.read_csv(self.path + self.VOCABULARY_PREFIX + self.filename, sep=self.separator, header=None)
+        self.vocabulary_size = dictionary.shape[0]
 
-        self.new_data.iloc[:self.data_size, :].to_csv(self.path + self.CLEAN_PREFIX + self.filename,
-                                                      sep=self.separator,
-                                                      index=False)
-        self.new_data.iloc[self.data_size:, :].to_csv(self.path + self.TEST_PREFIX + self.filename, sep=self.separator,
-                                                      index=False)
-        print('Successfully saved preprocessed files')
-
-    def apply_preprocessing(self, column_name, pos_column, chunk_column, entity_column):
+    def apply_preprocessing(self, column_name, pos_column, chunk_column, entity_column, recreate_dictionary=True):
         assert self.data is not None, 'No input data has been loaded'
 
         new_data = self.data.loc[self.data[column_name].str.len() < self.max_data_length].copy()
         new_data[column_name] = new_data[column_name].apply(lambda x: self.preprocess_single_entry(x))
 
-        self._build_dictionary(new_data, column_name, entity_column, pos_column=pos_column,
-                               chunk_column=chunk_column)
+        if recreate_dictionary:
+            self._build_dictionary(new_data, column_name, entity_column, pos_column=pos_column,
+                                chunk_column=chunk_column)
+        else:
+            print('Vocabularies already exist, no need to recreate them.')
+            self.restore_vocabulary_size()
 
         self.new_data = new_data
+        self.data_size = self.new_data.shape[0]
+
         print('Applied preprocessing to input data')
 
     def preprocess_single_entry(self, entry):
@@ -154,9 +153,7 @@ class BasePreprocessor(object):
         return entry
 
     def read_file(self):
-        self.data = pd.read_csv(self.path + self.filename, sep=self.separator)
-
-        return self.data
+        raise NotImplementedError
 
     @staticmethod
     def read_vocabulary(file_path, separator):

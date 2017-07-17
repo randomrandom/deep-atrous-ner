@@ -24,7 +24,7 @@ class BaseDataLoader(object):
     _TABLE_CHUNK = ConllPreprocessor.VOCABULARY_PREFIX + ConllPreprocessor.VOCABULARY_CHUNK
     _TABLE_ENTITY = ConllPreprocessor.VOCABULARY_PREFIX + ConllPreprocessor.VOCABULARY_ENTITY
 
-    DEFAULT_MAX_DATA_LENGTH = 240
+    DEFAULT_MAX_DATA_LENGTH = 300
     DEFAULT_VOCABULARY_SIZE = 50000
     DEFAULT_PRETRAINED_EMBEDDINGS = 'model/embeddings/glove.6B.300d.txt'
 
@@ -65,13 +65,13 @@ class BaseDataLoader(object):
 
         self.shuffle_queue = tf.RandomShuffleQueue(capacity=self._capacity, min_after_dequeue=self._min_after_dequeue,
                                                    dtypes=[tf.int64, tf.int64, tf.int64, tf.int64, tf.int64],
-                                                   shapes=None)
+                                                   shapes=None, name='shuffle_queue')
 
     def get_data(self):
-        return self.__load_batch(self.__file_names, record_defaults=self.__record_defaults,
-                                 field_delim=self.__field_delim, data_column=self.__data_column,
-                                 bucket_boundaries=self.__bucket_boundaries, skip_header_lines=self.__skip_header_lines,
-                                 num_epochs=None, shuffle=True)
+        return self.__load_data(self.__file_names, record_defaults=self.__record_defaults,
+                                field_delim=self.__field_delim, data_column=self.__data_column,
+                                bucket_boundaries=self.__bucket_boundaries, skip_header_lines=self.__skip_header_lines,
+                                num_epochs=None, shuffle=True)
 
     @staticmethod
     def _split_file_to_path_and_name(file_name):
@@ -91,29 +91,27 @@ class BaseDataLoader(object):
             file = Path(file_name)
             new_file_names.append(file_name)
 
-            if file.exists():
-                try:
-                    tf.os.remove(file_name)
-                except OSError:
-                    print("File not found %s" % file_name)
-
-            self.__preprocess_file(file_path, old_file_name, field_delim, data_column)
+            self.__preprocess_file(file_path, old_file_name, field_delim, data_column, file_exists=file.exists())
 
         return new_file_names
 
-    def __preprocess_file(self, path, file_name, field_delim, data_column):
+    def __preprocess_file(self, path, file_name, field_delim, data_column, file_exists=False):
         preprocessor = ConllPreprocessor(path, file_name, field_delim, self.DEFAULT_VOCABULARY_SIZE,
                                          self.DEFAULT_MAX_DATA_LENGTH)
         preprocessor.read_file()
+
         preprocessor.apply_preprocessing(data_column, ConllPreprocessor.POS_COLUMN, ConllPreprocessor.CHUNK_COLUMN,
-                                         ConllPreprocessor.ENTITY_COLUMN)
-        preprocessor.save_preprocessed_file()
+                                         ConllPreprocessor.ENTITY_COLUMN, recreate_dictionary=not file_exists)
+        if not file_exists:
+            preprocessor.save_preprocessed_file()
+
         self.vocabulary_size = preprocessor.vocabulary_size
         self.data_size = preprocessor.data_size
+        print(self.data_size)
 
-    def __load_batch(self, file_names, record_defaults, data_column, bucket_boundaries, field_delim=_CSV_DELIM,
-                     skip_header_lines=0,
-                     num_epochs=None, shuffle=True):
+    def __load_data(self, file_names, record_defaults, data_column, bucket_boundaries, field_delim=_CSV_DELIM,
+                    skip_header_lines=0,
+                    num_epochs=None, shuffle=True):
 
         original_file_names = file_names[:]
         file_names = self.__generate_preprocessed_files(file_names, data_column, field_delim=field_delim)
@@ -217,7 +215,7 @@ class BaseDataLoader(object):
                                                           bucket_boundaries=bucket_boundaries,
                                                           dynamic_pad=True,
                                                           capacity=self._capacity,
-                                                          num_threads=self._num_threads)
+                                                          num_threads=self._num_threads, name='bucket_queue')
 
         # reshape shape into proper form after dequeue from bucket queue
         padded_sent = padded_sent.sg_reshape(shape=[self._batch_size, -1])
