@@ -31,8 +31,8 @@ else:
     word_emb = tf.sg_emb(name=word_embedding_name, voca_size=data.vocabulary_size, dim=embedding_dim)
 
 z_w = test.source_words.sg_lookup(emb=word_emb)
-z_p = tf.one_hot(test.source_pos, depth=num_pos)
-z_c = tf.one_hot(test.source_chunk, depth=num_chunk)
+z_p = tf.one_hot(test.source_pos - 1, depth=num_pos)
+z_c = tf.one_hot(test.source_chunk - 1, depth=num_chunk)
 z_cap = test.source_capitals.sg_cast(dtype=tf.float32)
 
 # we concatenated all inputs into one single input vector
