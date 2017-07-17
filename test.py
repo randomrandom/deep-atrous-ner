@@ -5,7 +5,7 @@ from model.model import *
 
 __author__ = 'georgi.val.stoyan0v@gmail.com'
 
-BATCH_SIZE = 2 # should be more than one
+BATCH_SIZE = 4 # should be more than one
 DEBUG_SHOW = -1  # number of prediction samples to be shown
 EPOCHS = 1
 

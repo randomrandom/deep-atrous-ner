@@ -89,7 +89,7 @@ tf.sg_init(sess)
 data.visualize_embeddings(sess, word_emb, word_embedding_name)
 
 # train
-classifier_train(sess=sess, log_interval=30, lr=3e-3, clip_grad_norm=10, optim='Adam', save_interval=150,
+classifier_train(sess=sess, log_interval=30, lr=3e-3, clip_grad_norm=10, optim='Adam', max_keep=10,
                  loss=get_train_loss(z_i=z_i, entities=entities)[0],
                  eval_metric=get_val_metrics(v_i=v_i, entities=val_entities)[0], ep_size=data.num_batches,
                  val_ep_size=validation.num_batches, max_ep=150, early_stop=False)
