@@ -38,9 +38,10 @@ z_cap = test.source_capitals.sg_cast(dtype=tf.float32)
 # we concatenated all inputs into one single input vector
 z_i = tf.concat([z_w, z_p, z_c, z_cap], 2)
 
+
 with tf.sg_context(name='model'):
-    #classifier = rnn_model(z_i, num_labels, is_test=True)
-    classifier = decode(z_i, num_labels, test=True)
+    #classifier = rnn_classify(z_i, num_labels, is_test=True)
+    classifier = acnn_classify(z_i, num_labels, test=True)
 
     # calculating precision, recall and f-1 score (more relevant than accuracy)
     predictions = classifier.sg_argmax() + 1
@@ -48,12 +49,13 @@ with tf.sg_context(name='model'):
     words = data.reverse_table.lookup(test.source_words)
     entities = data.reverse_table_entity.lookup(test.entities)
 
+
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
     # init session vars
     tf.sg_init(sess)
     sess.run(tf.tables_initializer())
 
-    tf.sg_restore(sess, 'asset/train/' + max_model_name)
+    tf.sg_restore(sess, 'asset/train' + max_model_name)
 
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)

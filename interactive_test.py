@@ -45,7 +45,7 @@ with tf.sg_context(name='model'):
     # we concatenated all inputs into one single input vector
     z_i = tf.concat([z_w, z_p, z_c], 2)
 
-    classifier = decode(z_i, num_labels, data.vocabulary_size)
+    classifier = acnn_classify(z_i, num_labels, data.vocabulary_size)
 
 score = classifier.sg_argmax(axis=2)
 entities = data.reverse_table_entity.lookup(score)

@@ -20,7 +20,7 @@ class ConllPreprocessor(BasePreprocessor):
         return entry.lower()
 
     def __read_from_raw_file(self, raw_file):
-        number_of_lines = BasePreprocessor.get_line_number(raw_file)
+        number_of_lines = self.get_line_number(raw_file)
         with open(raw_file, 'r') as file:
 
             inside_example = False
@@ -126,3 +126,13 @@ class ConllPreprocessor(BasePreprocessor):
         is_capital_word = word[0].isupper() + 1  # we add one because 0 values are used for padding
 
         return is_capital_word
+
+    @staticmethod
+    def get_line_number(file_path):
+        with open(file_path, "r+") as fp:
+            buf = mmap.mmap(fp.fileno(), 0)
+            lines = 0
+            while buf.readline():
+                lines += 1
+
+        return lines

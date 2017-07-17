@@ -7,7 +7,6 @@ __author__ = 'georgi.val.stoyan0v@gmail.com'
 
 
 class ConllLoader(BaseDataLoader):
-    _name = 'ConllLoader'
     TSV_DELIM = '\t'
     DATA_COLUMN = ConllPreprocessor.EXAMPLE_COLUMN
 
@@ -32,7 +31,6 @@ class ConllLoader(BaseDataLoader):
         self.num_batches = self.data_size // self._batch_size
 
     def build_eval_graph(self, words, pos, chunks, capitals):
-
         # convert to tensor of strings
         split_sentence = tf.string_split(words, " ")
         split_pos = tf.string_split(pos, ' ')

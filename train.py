@@ -31,16 +31,16 @@ else:
     word_emb = tf.sg_emb(name=word_embedding_name, voca_size=data.vocabulary_size, dim=embedding_dim)
 
 z_w = data.source_words.sg_lookup(emb=word_emb)
-z_p = tf.one_hot(data.source_pos, depth=num_pos)
-z_c = tf.one_hot(data.source_chunk, depth=num_chunk)
+z_p = tf.one_hot(data.source_pos - 1, depth=num_pos)
+z_c = tf.one_hot(data.source_chunk - 1, depth=num_chunk)
 z_cap = data.source_capitals.sg_cast(dtype=tf.float32)
 
 # we concatenated all inputs into one single input vector
 z_i = tf.split(tf.concat([z_w, z_p, z_c, z_cap], 2), tf.sg_gpus())
 
 v_w = validation.source_words.sg_lookup(emb=word_emb)
-v_p = tf.one_hot(validation.source_pos, depth=num_pos)
-v_c = tf.one_hot(validation.source_chunk, depth=num_chunk)
+v_p = tf.one_hot(validation.source_pos - 1, depth=num_pos)
+v_c = tf.one_hot(validation.source_chunk - 1, depth=num_chunk)
 v_cap = validation.source_capitals.sg_cast(dtype=tf.float32)
 
 # we concatenated all inputs into one single input vector
@@ -56,8 +56,8 @@ def get_train_loss(opt):
     with tf.sg_context(name='model'):
         labels = opt.entities[opt.gpu_index]
 
-        # train_classifier = rnn_model(opt.z_i[opt.gpu_index], num_labels)
-        train_classifier = decode(opt.z_i[opt.gpu_index], num_labels)
+        # train_classifier = rnn_classify(opt.z_i[opt.gpu_index], num_labels)
+        train_classifier = acnn_classify(opt.z_i[opt.gpu_index], num_labels)
 
         # cross entropy loss with logit
         loss = train_classifier.ner_cost(target=labels, num_classes=num_labels)
@@ -72,8 +72,8 @@ def get_val_metrics(opt):
 
         val_labels = opt.entities[opt.gpu_index]
 
-        # test_classifier = rnn_model(opt.v_i[opt.gpu_index], num_labels, is_test=True)
-        test_classifier = decode(opt.v_i[opt.gpu_index], num_labels, test=True)
+        # test_classifier = rnn_classify(opt.v_i[opt.gpu_index], num_labels, is_test=True)
+        test_classifier = acnn_classify(opt.v_i[opt.gpu_index], num_labels, test=True)
         val_predictions = test_classifier.sg_argmax() + 1
 
         # accuracy evaluation (validation set)

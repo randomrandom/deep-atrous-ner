@@ -55,8 +55,8 @@ val_entities = validation.entities  # tf.split(validation.entities, tf.sg_gpus()
 with tf.sg_context(name='model'):
     labels = entities
 
-    # train_classifier = rnn_model(opt.z_i[opt.gpu_index], num_labels)
-    train_classifier = decode(z_i, num_labels)
+    # train_classifier = rnn_classify(opt.z_i[opt.gpu_index], num_labels)
+    train_classifier = acnn_classify(z_i, num_labels)
 
     # cross entropy loss with logit
     loss = train_classifier.ner_cost(target=labels, num_classes=num_labels)
@@ -69,8 +69,8 @@ with tf.sg_context(name='model', reuse=True):
 
     labels = val_entities
 
-    # test_classifier = rnn_model(opt.v_i[opt.gpu_index], num_labels, is_test=True)
-    test_classifier = decode(v_i, num_labels, test=True)
+    # test_classifier = rnn_classify(opt.v_i[opt.gpu_index], num_labels, is_test=True)
+    test_classifier = acnn_classify(v_i, num_labels, test=True)
 
     # accuracy evaluation (validation set)
     acc = test_classifier.ner_accuracy(target=labels, mask=True, name='accuracy')

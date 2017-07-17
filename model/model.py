@@ -19,15 +19,17 @@ embedding_dim = 300  # 300 # embedding dimension
 latent_dim = 256  # 256 # hidden layer dimension
 num_blocks = 2  # 2 # dilated blocks
 reg_type = 'l2'  # type of regularization used
-default_dout = 0.5  # define the default dropout rate
+default_dout = 0.15  # define the default dropout rate
+
 use_pre_trained_embeddings = True  # whether to use pre-trained embedding vectors
 pre_trained_embeddings_file = EMBEDDINGS_DIR + GLOVE_6B_300d_EMBEDDINGS  # the location of the pre-trained embeddings
-num_labels = 5
-num_pos = 6
-num_chunk = 6
 
-first_meaningful_entity = 2 # filter PAD and O entity
-max_model_name = 'max_model.ckpt'
+first_meaningful_entity = 2  # filter PAD and O entity
+num_labels = 5  # the number of valid entity classes
+num_pos = 5  # number of valid pos tags
+num_chunk = 5  # number of chunk tags
+
+max_model_name = '/max_model.ckpt'  # name of the checkpoint with the best model
 
 
 @tf.sg_layer_func
@@ -83,13 +85,11 @@ def sg_res_block(tensor, opt):
 tf.sg_inject_func(sg_res_block)
 
 
-# cnn decode graph ( causal convolution )
-#
-
-def decode(x, num_classes, test=False, causal=False):
-    with tf.sg_context(name='decode'):
+# cnn acnn_classify graph
+def acnn_classify(x, num_classes, test=False, causal=False):
+    with tf.sg_context(name='acnn_classify'):
         dropout = 0 if test else default_dout
-        res = x.sg_conv1d(size=1, dim=latent_dim, ln=True, regularizer=reg_type, name='decompressor')
+        res = x.sg_conv1d(size=1, dim=latent_dim, ln=True, regularizer=reg_type, name='conv_input_formatter')
 
         # loop dilated causal conv block
         for i in range(num_blocks):
@@ -103,17 +103,45 @@ def decode(x, num_classes, test=False, causal=False):
 
         batch_size = res.get_shape().as_list()[0]
         in_dim = res.get_shape().as_list()[-1]
+
         res = res.sg_conv1d(size=1, dim=in_dim, dout=dropout, act='relu', ln=True, regularizer=reg_type,
-                            name='conv_dout_final')
+                            name='conv_output_formatter')
 
         # fully convolution layer
-        res = res.sg_conv1d(size=1, dim=num_classes, act='relu', ln=True, regularizer=reg_type, name='conv_relu_final')
+        res = res.sg_conv1d(size=1, dim=num_classes, act='relu', ln=True, regularizer=reg_type, name='conv_final')
 
         # fc layers & softmax
         res = (res.sg_reshape(shape=[-1, num_classes])
-               .sg_dense(dim=num_classes, name='dense')
+               .sg_dense(dim=num_classes, name='dense_final')
                .sg_softmax()
                .sg_reshape(shape=[batch_size, -1, num_classes]))
+
+    return res
+
+
+def lstm_cell(is_test):
+    dropout = 0 if is_test else default_dout
+    keep_prob = 1 - dropout
+
+    cell = tf.nn.rnn_cell.LSTMCell(latent_dim, state_is_tuple=True)
+    cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=keep_prob)
+
+    return cell
+
+
+def rnn_classify(x, num_classes, is_test=False):
+    with tf.sg_context(name='rnn_classify'):
+        fw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell(is_test) for _ in range(num_blocks)], state_is_tuple=True)
+        bw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell(is_test) for _ in range(num_blocks)], state_is_tuple=True)
+
+        words_used_in_sent = tf.sign(tf.reduce_max(tf.abs(x), reduction_indices=2))
+        length = tf.cast(tf.reduce_sum(words_used_in_sent, reduction_indices=1), tf.int32)
+
+        outputs, _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, x, dtype=tf.float32, sequence_length=length)
+        output = tf.concat(outputs, 2).sg_reshape(shape=[-1, 2 * latent_dim])
+
+        prediction = output.sg_dense(dim=num_classes, name='dense')
+        res = tf.reshape(prediction, [x.get_shape().as_list()[0], -1, num_classes])
 
     return res
 
@@ -143,32 +171,6 @@ def ner_cost(tensor, opt):
 tf.sg_inject_func(ner_cost)
 
 
-def lstm_cell(is_test):
-    dropout = 0 if is_test else default_dout
-    keep_prob = 1 - dropout
-
-    cell = tf.nn.rnn_cell.LSTMCell(latent_dim, state_is_tuple=True)
-    cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=keep_prob)
-
-    return cell
-
-
-def rnn_model(x, num_classes, is_test=False):
-    with tf.sg_context(name='rnn_model'):
-        fw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell(is_test) for _ in range(num_blocks)], state_is_tuple=True)
-        bw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell(is_test) for _ in range(num_blocks)], state_is_tuple=True)
-
-        words_used_in_sent = tf.sign(tf.reduce_max(tf.abs(x), reduction_indices=2))
-        length = tf.cast(tf.reduce_sum(words_used_in_sent, reduction_indices=1), tf.int32)
-
-        outputs, _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, x, dtype=tf.float32, sequence_length=length)
-        output = tf.concat(outputs, 2).sg_reshape(shape=[-1, 2 * latent_dim])
-
-        prediction = output.sg_dense(dim=num_classes, name='dense')
-        res = tf.reshape(prediction, [x.get_shape().as_list()[0], -1, num_classes])
-
-    return res
-
 def calculate_f1_metrics(all_predicted, all_targets):
     first_class = first_meaningful_entity
     class_count = len(set(all_targets))
@@ -182,7 +184,7 @@ def calculate_f1_metrics(all_predicted, all_targets):
     f1_separate_scores = metrics.f1_score(filtered_true, filtered_predicted,
                                           labels=[i for i in range(first_class, class_count)], average=None)
     f1_score = metrics.f1_score(filtered_true, filtered_predicted,
-                               labels=[i for i in range(first_class, class_count)], average='micro')
+                                labels=[i for i in range(first_class, class_count)], average='micro')
 
     return f1_separate_scores, f1_score
 
