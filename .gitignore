@@ -13,4 +13,5 @@ data/datasets/conll_2003/metadata*
 data/datasets/conll_2003/vocabulary*
 *.ipynb_checkpoints
 *.ipynb
+*.tsv
 __pycache__

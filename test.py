@@ -1,4 +1,3 @@
-from sklearn import metrics
 from tqdm import tqdm
 
 from data.conll_loader import ConllLoader
@@ -6,14 +5,13 @@ from model.model import *
 
 __author__ = 'georgi.val.stoyan0v@gmail.com'
 
-BATCH_SIZE = 1
+BATCH_SIZE = 4 # should be more than one
 DEBUG_SHOW = -1  # number of prediction samples to be shown
 EPOCHS = 1
 
 BUCKETS = [1]
 DATA_FILE = ['./data/datasets/conll_2003/eng.train']
 TEST_FILES = ['./data/datasets/conll_2003/eng.testa']
-NUM_LABELS = 6
 
 data = ConllLoader(BUCKETS, DATA_FILE, used_for_test_data=True, batch_size=BATCH_SIZE)
 test = ConllLoader(BUCKETS, TEST_FILES, batch_size=BATCH_SIZE, table=data.table, table_pos=data.table_pos,
@@ -28,40 +26,36 @@ word_embedding_name = 'word_emb'
 
 if use_pre_trained_embeddings:
     embedding_matrix = data.preload_embeddings(embedding_dim, pre_trained_embeddings_file)
-    word_emb = init_custom_embeddings(name=word_embedding_name, embeddings_matrix=embedding_matrix, trainable=True)
+    word_emb = init_custom_embeddings(name=word_embedding_name, embeddings_matrix=embedding_matrix, trainable=False)
 else:
     word_emb = tf.sg_emb(name=word_embedding_name, voca_size=data.vocabulary_size, dim=embedding_dim)
 
+z_w = test.source_words.sg_lookup(emb=word_emb)
+z_p = tf.one_hot(test.source_pos - 1, depth=num_pos)
+z_c = tf.one_hot(test.source_chunk - 1, depth=num_chunk)
+z_cap = test.source_capitals.sg_cast(dtype=tf.float32)
+
+# we concatenated all inputs into one single input vector
+z_i = tf.concat([z_w, z_p, z_c, z_cap], 2)
+
+
 with tf.sg_context(name='model'):
-    z_w = test.source_words.sg_lookup(emb=word_emb)
-    z_p = tf.one_hot((test.source_pos - 1), depth=6)
-    z_c = tf.one_hot((test.source_chunk - 1), depth=6)
-    z_cap = test.source_capitals.sg_cast(dtype=tf.float32)
-
-    # we concatenated all inputs into one single input vector
-    z_i = tf.concat([z_w, z_p, z_c, z_cap], 2)
-
-    classifier = decode(z_i, NUM_LABELS, test=True)
+    #classifier = rnn_classify(z_i, num_labels, is_test=True)
+    classifier = acnn_classify(z_i, num_labels, test=True)
 
     # calculating precision, recall and f-1 score (more relevant than accuracy)
-    predictions = classifier.sg_argmax(axis=2)
-    entities = data.reverse_table.lookup(predictions)
-    one_hot_predictions = classifier
-    one_hot_labels = tf.one_hot(test.entities, NUM_LABELS, dtype=tf.int64)
+    predictions = classifier.sg_argmax() + 1
 
-    precision, precision_op = tf.contrib.metrics.streaming_sparse_average_precision_at_k(one_hot_predictions,
-                                                                                         one_hot_labels, 1,
-                                                                                         name='test_b_precision')
-    recall, recall_op = tf.contrib.metrics.streaming_sparse_recall_at_k(one_hot_predictions, one_hot_labels, 1,
-                                                                        name='test_b_recall')
+    words = data.reverse_table.lookup(test.source_words)
+    entities = data.reverse_table_entity.lookup(test.entities)
 
-    f1_score = (2 * (precision_op * recall_op)) / (precision_op + recall_op)
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
     # init session vars
     tf.sg_init(sess)
     sess.run(tf.tables_initializer())
-    tf.sg_restore(sess, tf.train.latest_checkpoint('asset/train'))
+
+    tf.sg_restore(sess, 'asset/train' + max_model_name)
 
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)
@@ -69,38 +63,24 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
     try:
         all_true = []
         all_predicted = []
-        for i in tqdm(range(0, EPOCHS * test.data_size // BATCH_SIZE)):
-            entities_sample, predictions_sample, _, __ = sess.run([test.entities, predictions, precision_op, recall_op])
+        for i in tqdm(range(0, EPOCHS * test.num_batches)):
+            words_sample, word_entities_sample, entities_sample, predictions_sample  = sess.run(
+                [words, entities, test.entities, predictions])
 
             all_true.extend(entities_sample.flatten())
             all_predicted.extend(predictions_sample.flatten())
 
             if i < DEBUG_SHOW:
+                print('\nExample:')
+                print(words_sample)
+                print(word_entities_sample)
                 print(entities_sample)
-                print('Predictions')
+                print('Predictions:')
                 print(predictions_sample)
 
-        first_class = 1
-        s_prec = metrics.precision_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average=None)
-        s_prec_stat = metrics.precision_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average='micro')
-        s_rec = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average=None)
-        s_rec_stat = metrics.recall_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average='micro')
-        s_f1 = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average=None)
-        s_f1_stat = metrics.f1_score(all_true, all_predicted, labels=[i for i in range(first_class, NUM_LABELS)], average='micro')
-        s_confusion = metrics.confusion_matrix(all_true, all_predicted)
-
-        print(s_prec)
-        print(s_prec_stat)
-        print(s_rec)
-        print(s_rec_stat)
-        print(s_f1)
-        print(s_f1_stat)
-        print(s_confusion)
-
-        final_precision, final_recall, final_f1 = sess.run([precision, recall, f1_score])
-        print('Precision:{}'.format(final_precision))
-        print('Recall:{}'.format(final_recall))
-        print('f-1 score:{}'.format(final_f1))
+        f1_separate_scores, f1_stat = calculate_f1_metrics(all_predicted, all_true)
+        print('F1 scores of the meaningful classes: {}'.format(f1_separate_scores))
+        print('Total f1 score: {}'.format(f1_stat))
     except tf.errors.OutOfRangeError as ex:
         coord.request_stop(ex=ex)
     finally:

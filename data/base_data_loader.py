@@ -5,38 +5,37 @@ import numpy as np
 import sugartensor as tf
 from tensorflow.contrib.tensorboard.plugins import projector
 
+from data.preprocessors.base_preprocessor import BasePreprocessor
 from data.preprocessors.conll_preprocessor import ConllPreprocessor
 
 __author__ = 'george.val.stoyan0v@gmail.com'
 
 
 class BaseDataLoader(object):
-    _CSV_DELIM = ","
+    __DEFAULT_DELIM = "\t"
     _DEFAULT_SKIP_HEADER_LINES = 0
-    _name = "data_loader"
-    _num_threads = 2  # 32
-    _batch_size = 16  # 64
-    _min_after_dequeue = _batch_size * _num_threads
-    _capacity = _min_after_dequeue + (_num_threads + 2) * _batch_size  # as recommended in tf tutorial
+    _DEFAULT_NUM_THREADS = 32
+    _DEFAULT_BATCH_SIZE = 32
+    _default_min_after_dequeue = _DEFAULT_BATCH_SIZE * _DEFAULT_NUM_THREADS
+    # as recommended in tf tutorial
+    _default_capacity = _default_min_after_dequeue + (_DEFAULT_NUM_THREADS + 2) * _DEFAULT_BATCH_SIZE
 
     _TABLE_POS = ConllPreprocessor.VOCABULARY_PREFIX + ConllPreprocessor.VOCABULARY_POS
     _TABLE_CHUNK = ConllPreprocessor.VOCABULARY_PREFIX + ConllPreprocessor.VOCABULARY_CHUNK
     _TABLE_ENTITY = ConllPreprocessor.VOCABULARY_PREFIX + ConllPreprocessor.VOCABULARY_ENTITY
 
-    DEFAULT_TEST_SPLIT = .1
-    DEFAULT_MAX_DATA_LENGTH = 240
+    DEFAULT_MAX_DATA_LENGTH = 300
     DEFAULT_VOCABULARY_SIZE = 50000
-    DEFAULT_PRETRAINED_EMBEDDINGS = 'data/embeddings/glove.6B.300d.txt'
+    DEFAULT_PRE_TRAINED_EMBEDDINGS = 'model/embeddings/glove.6B.300d.txt'
 
     DEFAULT_META_DATA_FILE = 'metadata.tsv'
-    DEFAULT_METADATA_DIR = 'asset/train/'
+    DEFAULT_META_DATA_DIR = 'data/datasets/conll_2003/'
+    DEFAULT_SAVE_DIR = BasePreprocessor.DEFAULT_SAVE_DIR
 
     def __init__(self, record_defaults, field_delim, data_column, bucket_boundaries, file_names,
-                 skip_header_lines=_DEFAULT_SKIP_HEADER_LINES,
-                 num_threads=_num_threads, batch_size=_batch_size, min_after_dequeue=_min_after_dequeue,
-                 capacity=_capacity, used_for_test_data=False, meta_file=DEFAULT_META_DATA_FILE,
-                 save_dir=DEFAULT_METADATA_DIR, table=None, table_pos=None, table_chunk=None, table_entity=None,
-                 name=_name):
+                 skip_header_lines=_DEFAULT_SKIP_HEADER_LINES, num_threads=_DEFAULT_NUM_THREADS,
+                 batch_size=_DEFAULT_BATCH_SIZE, used_for_test_data=False, meta_file=DEFAULT_META_DATA_FILE,
+                 save_dir=DEFAULT_SAVE_DIR, table=None, table_pos=None, table_chunk=None, table_entity=None):
         self.__file_names = file_names
         self.__field_delim = field_delim
         self.__record_defaults = record_defaults
@@ -46,32 +45,31 @@ class BaseDataLoader(object):
         self.__vocabulary_file = None
 
         self._used_for_test_data = used_for_test_data
-        self._min_after_dequeue = min_after_dequeue
+        self.num_threads = num_threads
         self._batch_size = batch_size
-        self._capacity = capacity
-        self._name = name
+        self._min_after_dequeue = self._batch_size * self.num_threads
+        self._capacity = self._min_after_dequeue + (self.num_threads + 2) * self._batch_size
 
         self.meta_file = meta_file
         self.save_dir = save_dir
         self.table = table
         self.reverse_table = None
+        self.reverse_table_entity = None
         self.table_chunk = table_chunk
         self.table_pos = table_pos
         self.table_entity = table_entity
-        self.num_threads = num_threads
         self.vocabulary_size = 0
-        self.train_size = 0
-        self.test_size = 0
 
-        self.shuffle_queue = tf.RandomShuffleQueue(capacity=self._capacity, min_after_dequeue=self._min_after_dequeue,
+        self.shuffle_queue = tf.RandomShuffleQueue(capacity=self._capacity,
+                                                   min_after_dequeue=self._min_after_dequeue,
                                                    dtypes=[tf.int64, tf.int64, tf.int64, tf.int64, tf.int64],
-                                                   shapes=None)
+                                                   shapes=None, name='shuffle_queue')
 
     def get_data(self):
-        return self.__load_batch(self.__file_names, record_defaults=self.__record_defaults,
-                                 field_delim=self.__field_delim, data_column=self.__data_column,
-                                 bucket_boundaries=self.__bucket_boundaries, skip_header_lines=self.__skip_header_lines,
-                                 num_epochs=None, shuffle=True)
+        return self.__load_data(self.__file_names, record_defaults=self.__record_defaults,
+                                field_delim=self.__field_delim, data_column=self.__data_column,
+                                bucket_boundaries=self.__bucket_boundaries, skip_header_lines=self.__skip_header_lines,
+                                num_epochs=None, shuffle=True)
 
     @staticmethod
     def _split_file_to_path_and_name(file_name):
@@ -80,7 +78,7 @@ class BaseDataLoader(object):
 
         return file_path, tail
 
-    def __generate_preprocessed_files(self, file_names, data_column, field_delim=_CSV_DELIM):
+    def __generate_preprocessed_files(self, file_names, data_column, field_delim=__DEFAULT_DELIM):
         new_file_names = []
         for filename in file_names:
             file_path, tail = BaseDataLoader._split_file_to_path_and_name(filename)
@@ -91,29 +89,27 @@ class BaseDataLoader(object):
             file = Path(file_name)
             new_file_names.append(file_name)
 
-            if file.exists():
-                try:
-                    tf.os.remove(file_name)
-                except OSError:
-                    print("File not found %s" % file_name)
-
-            self.__preprocess_file(file_path, old_file_name, field_delim, data_column)
+            self.__preprocess_file(file_path, old_file_name, field_delim, data_column, file_exists=file.exists())
 
         return new_file_names
 
-    def __preprocess_file(self, path, file_name, field_delim, data_column):
+    def __preprocess_file(self, path, file_name, field_delim, data_column, file_exists=False):
         preprocessor = ConllPreprocessor(path, file_name, field_delim, self.DEFAULT_VOCABULARY_SIZE,
                                          self.DEFAULT_MAX_DATA_LENGTH)
         preprocessor.read_file()
+
         preprocessor.apply_preprocessing(data_column, ConllPreprocessor.POS_COLUMN, ConllPreprocessor.CHUNK_COLUMN,
-                                         ConllPreprocessor.ENTITY_COLUMN)
-        preprocessor.save_preprocessed_file()
+                                         ConllPreprocessor.ENTITY_COLUMN, recreate_dictionary=not file_exists)
+        if not file_exists:
+            preprocessor.save_preprocessed_file()
+
         self.vocabulary_size = preprocessor.vocabulary_size
         self.data_size = preprocessor.data_size
+        print(self.data_size)
 
-    def __load_batch(self, file_names, record_defaults, data_column, bucket_boundaries, field_delim=_CSV_DELIM,
-                     skip_header_lines=0,
-                     num_epochs=None, shuffle=True):
+    def __load_data(self, file_names, record_defaults, data_column, bucket_boundaries, field_delim=__DEFAULT_DELIM,
+                    skip_header_lines=0,
+                    num_epochs=None, shuffle=True):
 
         original_file_names = file_names[:]
         file_names = self.__generate_preprocessed_files(file_names, data_column, field_delim=field_delim)
@@ -156,8 +152,11 @@ class BaseDataLoader(object):
                 num_oov_buckets=0)
 
         if self._used_for_test_data:
-            print('Rever vocabulary table is needed => creating it')
+            print('Reverse vocabulary is needed => creating it')
             self.reverse_table = tf.contrib.lookup.index_to_string_table_from_file(
+                vocabulary_file=voca_path + voca_name)
+            print('Reverse entity vocabulary is needed => creating it')
+            self.reverse_table_entity = tf.contrib.lookup.index_to_string_table_from_file(
                 vocabulary_file=voca_path + self._TABLE_ENTITY + voca_suffix)
 
         # convert to tensor of strings
@@ -214,7 +213,7 @@ class BaseDataLoader(object):
                                                           bucket_boundaries=bucket_boundaries,
                                                           dynamic_pad=True,
                                                           capacity=self._capacity,
-                                                          num_threads=self._num_threads)
+                                                          num_threads=self.num_threads, name='bucket_queue')
 
         # reshape shape into proper form after dequeue from bucket queue
         padded_sent = padded_sent.sg_reshape(shape=[self._batch_size, -1])
@@ -225,7 +224,8 @@ class BaseDataLoader(object):
 
         return padded_sent, padded_pos, padded_chunk, padded_capitals, padded_entities
 
-    def _read_file(self, filename_queue, record_defaults, field_delim=_CSV_DELIM,
+    @staticmethod
+    def _read_file(filename_queue, record_defaults, field_delim=__DEFAULT_DELIM,
                    skip_header_lines=_DEFAULT_SKIP_HEADER_LINES):
         """
         Reading of the ConLL TSV file
@@ -240,7 +240,7 @@ class BaseDataLoader(object):
 
         return words, pos, chunks, capitals, entities
 
-    def preload_embeddings(self, embed_dim, file_name=DEFAULT_PRETRAINED_EMBEDDINGS):
+    def preload_embeddings(self, embed_dim, file_name=DEFAULT_PRE_TRAINED_EMBEDDINGS):
         """
         Pre-loads word embeddings like word2vec and Glove
         :param embed_dim: the embedding dimension, currently should equal to the one in the original pre-trained vector
@@ -248,12 +248,12 @@ class BaseDataLoader(object):
         :return: the loaded pre-trained embeddings
         """
 
-        pre_trained_emb = np.random.uniform(-0.05, 0.05, (self.vocabulary_size, embed_dim))
+        pre_trained_emb = np.random.uniform(-0.1, 0.1, (self.vocabulary_size, embed_dim))
         with open(file_name, 'r', encoding='utf-8') as emb_file:
             mapped_words = 0
-
             dictionary = ConllPreprocessor.read_vocabulary(self.__vocabulary_file, self.__field_delim)
             missing_words = dictionary.copy()
+            invalid_words = 0
 
             for line in emb_file.readlines():
                 row = line.strip().split(' ')
@@ -264,14 +264,22 @@ class BaseDataLoader(object):
                     'Embedding dimension should be same as the one in the pre-trained embeddings.'
 
                 if word in dictionary:
+                    vector = np.array([float(val) for val in row[1:]])
+                    if len(vector) != embed_dim:
+                        invalid_words += 1
+                        continue
+
                     mapped_words = mapped_words + 1
-                    pre_trained_emb[dictionary[word] - 1] = row[1:]
+                    pre_trained_emb[dictionary[word]] = vector
                     del missing_words[word]
 
+            print('Invalid words count: %d' % invalid_words)
             print('Mapped words to pre-trained embeddings: %d' % mapped_words)
 
             # TODO: should do some updates in voca_size if mapped words are less, currently missing words are random embeddings which are not going to be trained
             # assert mapped_words == self.VOCABULARY_SIZE, 'Glove mapping should equal to the vocabulary size'
+
+        pre_trained_emb[dictionary[BasePreprocessor.PAD_TOKEN]] = [0] * embed_dim
 
         print('Loaded pre-trained embeddings')
 
@@ -297,6 +305,6 @@ class BaseDataLoader(object):
         config = projector.ProjectorConfig()
         emb = config.embeddings.add()
         emb.tensor_name = name  # tensor
-        emb.metadata_path = tf.os.path.join(self.save_dir, self.meta_file)  # metadata file
+        emb.metadata_path = tf.os.path.join(self.DEFAULT_META_DATA_DIR, self.meta_file)  # metadata file
         print(tf.os.path.abspath(emb.metadata_path))
         projector.visualize_embeddings(summary_writer, config)

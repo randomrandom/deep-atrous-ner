@@ -7,12 +7,11 @@ __author__ = 'georgi.val.stoyan0v@gmail.com'
 
 
 class ConllLoader(BaseDataLoader):
-    _name = 'ConllLoader'
     TSV_DELIM = '\t'
     DATA_COLUMN = ConllPreprocessor.EXAMPLE_COLUMN
 
-    DEFAULT_META_DATA_FILE = 'metadata_labeledTrainData.tsv'
-    DEFAULT_METADATA_DIR = 'data/datasets/conll_2003/'
+    DEFAULT_META_DATA_FILE = 'metadata_eng.train'
+    DEFAULT_SAVE_DIR = 'asset/train'
 
     def __init__(self, bucket_boundaries, file_names, *args, **kwargs):
         self._file_preprocessor = None
@@ -26,15 +25,12 @@ class ConllLoader(BaseDataLoader):
 
         super().__init__(record_defaults, self.field_delim, data_column, bucket_boundaries, file_names, *args,
                          skip_header_lines=skip_header_lines, meta_file=ConllLoader.DEFAULT_META_DATA_FILE,
-                         save_dir=ConllLoader.DEFAULT_METADATA_DIR, **kwargs)
+                         save_dir=ConllLoader.DEFAULT_SAVE_DIR, **kwargs)
 
         self.source_words, self.source_pos, self.source_chunk, self.source_capitals, self.entities = self.get_data()
-
-        data_size = self.data_size
-        self.num_batches = data_size // self._batch_size
+        self.num_batches = self.data_size // self._batch_size
 
     def build_eval_graph(self, words, pos, chunks, capitals):
-
         # convert to tensor of strings
         split_sentence = tf.string_split(words, " ")
         split_pos = tf.string_split(pos, ' ')
