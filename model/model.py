@@ -181,12 +181,21 @@ def calculate_f1_metrics(all_predicted, all_targets):
             filtered_true.append(all_targets[i])
             filtered_predicted.append(all_predicted[i])
 
+    precision_separate_scores = metrics.precision_score(filtered_true, filtered_predicted,
+                                                        labels=[i for i in range(first_class, class_count)],
+                                                        average=None)
+    precision_score = metrics.precision_score(filtered_true, filtered_predicted,
+                                              labels=[i for i in range(first_class, class_count)], average='micro')
+    recall_separate_scores = metrics.recall_score(filtered_true, filtered_predicted,
+                                                  labels=[i for i in range(first_class, class_count)], average=None)
+    recall_score = metrics.recall_score(filtered_true, filtered_predicted,
+                                        labels=[i for i in range(first_class, class_count)], average='micro')
     f1_separate_scores = metrics.f1_score(filtered_true, filtered_predicted,
                                           labels=[i for i in range(first_class, class_count)], average=None)
     f1_score = metrics.f1_score(filtered_true, filtered_predicted,
                                 labels=[i for i in range(first_class, class_count)], average='micro')
 
-    return f1_separate_scores, f1_score
+    return f1_separate_scores, f1_score, precision_separate_scores, precision_score, recall_separate_scores, recall_score
 
 
 @tf.sg_sugar_func

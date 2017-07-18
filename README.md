@@ -1,6 +1,6 @@
 # Deep-Atrous-CNN-NER: Word level model for Named Entity Recognition
 
-A Deep Atrous CNN architecture suitable for text (sentiment) classification with variable length.
+A Deep Atrous CNN architecture suitable for Named Entity Recognition on input with variable length.
 
 The architecture replaces the predominant LSTM-based architectures for Named Entity Recognition tasks. Instead it uses fully convolutional model with dilated convolutions, which are resolution perserving. The architecture is inspired by the ByteNet model described in [Neural Machine Translation in Linear Time](https://arxiv.org/abs/1610.10099).
 
@@ -106,19 +106,23 @@ CUDA_VISIBLE_DEVICES=0,1 python test.py ( <== Use only GPU 0, 1 )
 
 It will produces a similar output:
 ```
-F1 scores of the meaningful classes: [ 0.91334456  0.82558368  0.88495575  0.75923852]        │Epoch 83 - f1 scores of the meaningful classes: [ 0.94977511  0.88280847  0.93991853  0.86969931]
+Precision scores of the meaningful classes: [ 0.9506689   0.84571279  0.86779375  0.75980146] 
+Recall scores of the meaningful classes: [ 0.816563845  0.81803279  0.93372093  0.74620112]
+F1 scores of the meaningful classes: [ 0.91334456  0.82558368  0.88495575  0.75923852]
+Total precision score: 0.8540072859744991  
+Total recall score: 0.8616679076693969   
 Total f1 score: 0.8614227514885617         
 ```
 
 Which in the case of the CoNLL-2003 score represents the following table:
 
-Class | F1-score
---- | --- 
-*PER* | 91.33
-*ORG* | 82.55
-*LOC* | 88.49
-*MISC* | 75.92 
-*Total* | 86.14 
+Class | Precision | Recall | F1
+--- | --- | --- | ---
+*PER* | 95.06 | 81.65 | 91.33
+*ORG* | 84.57 | 81.80 | 82.55
+*LOC* | 86.77 | 93.37 | 88.49
+*MISC* | 75.98 | 74.62 | 75.92
+*Total* | 85.40 | 86.16 | 86.14
 
 The script will run by default on the `testb` dataset.
 

@@ -5,7 +5,7 @@ from model.model import *
 
 __author__ = 'georgi.val.stoyan0v@gmail.com'
 
-BATCH_SIZE = 4 # should be more than one
+BATCH_SIZE = 4  # should be more than one
 DEBUG_SHOW = -1  # number of prediction samples to be shown
 EPOCHS = 1
 
@@ -38,9 +38,8 @@ z_cap = test.source_capitals.sg_cast(dtype=tf.float32)
 # we concatenated all inputs into one single input vector
 z_i = tf.concat([z_w, z_p, z_c, z_cap], 2)
 
-
 with tf.sg_context(name='model'):
-    #classifier = rnn_classify(z_i, num_labels, is_test=True)
+    # classifier = rnn_classify(z_i, num_labels, is_test=True)
     classifier = acnn_classify(z_i, num_labels, test=True)
 
     # calculating precision, recall and f-1 score (more relevant than accuracy)
@@ -48,7 +47,6 @@ with tf.sg_context(name='model'):
 
     words = data.reverse_table.lookup(test.source_words)
     entities = data.reverse_table_entity.lookup(test.entities)
-
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
     # init session vars
@@ -64,7 +62,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         all_true = []
         all_predicted = []
         for i in tqdm(range(0, EPOCHS * test.num_batches)):
-            words_sample, word_entities_sample, entities_sample, predictions_sample  = sess.run(
+            words_sample, word_entities_sample, entities_sample, predictions_sample = sess.run(
                 [words, entities, test.entities, predictions])
 
             all_true.extend(entities_sample.flatten())
@@ -78,8 +76,14 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
                 print('Predictions:')
                 print(predictions_sample)
 
-        f1_separate_scores, f1_stat = calculate_f1_metrics(all_predicted, all_true)
+        f1_separate_scores, f1_stat, precision_separate_scores, precision_score, recall_separate_scores, recall_score = \
+            calculate_f1_metrics(all_predicted, all_true)
+
+        print('Precision scores of the meaningful classes: {}'.format(precision_separate_scores))
+        print('Recall scores of the meaningful classes: {}'.format(recall_separate_scores))
         print('F1 scores of the meaningful classes: {}'.format(f1_separate_scores))
+        print('Total precision score: {}'.format(precision_score))
+        print('Total recall score: {}'.format(recall_score))
         print('Total f1 score: {}'.format(f1_stat))
     except tf.errors.OutOfRangeError as ex:
         coord.request_stop(ex=ex)
