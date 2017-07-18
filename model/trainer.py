@@ -309,7 +309,7 @@ def sg_train_func(func):
                         all_predicted.extend(predictions.flatten())
                         all_targets.extend(targets.flatten())
 
-                    f1_separate_scores, f1_stat = calculate_f1_metrics(all_predicted, all_targets)
+                    f1_separate_scores, f1_stat, _, _, _, _ = calculate_f1_metrics(all_predicted, all_targets)
                     print('Epoch {} - f1 scores of the meaningful classes: {}'.format(ep, f1_separate_scores))
                     print('Epoch {} - total f1 score: {}'.format(ep, f1_stat))
 
