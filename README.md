@@ -14,7 +14,7 @@ The model has several components:
 Tailored cross-entropy function is applied at the end. Dropout is applied within every ResNet block in the atrous-cnn component.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/randomrandom/deep-atrous-cnn-sentiment/master/png/architecture.png" width="1024"/>
+  <img src="https://raw.githubusercontent.com/randomrandom/deep-atrous-ner/master/png/architecture.png" width="1024"/>
 </p>
 
 The network support embedding initialization with pre-trained GloVe vectors ([GloVe: Gloval Vectors for Word Representations](https://nlp.stanford.edu/pubs/glove.pdf)) which handle even rare words quite well compared to word2vec.
@@ -22,7 +22,7 @@ The network support embedding initialization with pre-trained GloVe vectors ([Gl
 To speed up training the model pre-processes any input into "clean" file, which then utilizes for training. The data is read by line from the "clean" files for better memory management. All input data is split into the appropriate buckets and dynamic padding is applied, which provides better accuracy and speed up during training. The input pipeline can read from multiple data sources which makes addition of more data sources easy as long as they are preprocessed in the right format. The model can be trained on multiple GPUs if the hardware provides this capability.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/randomrandom/deep-atrous-cnn-sentiment/master/png/queue_example.gif" width="1024"/>
+  <img src="https://raw.githubusercontent.com/randomrandom/deep-atrous-ner/master/png/queue_example.gif" width="1024"/>
 </p>
 
 (Some images are cropped from [WaveNet: A Generative Model for Raw Audio](https://arxiv.org/abs/1609.03499), [Neural Machine Translation in Linear Time](https://arxiv.org/abs/1610.10099) and [Tensorflow's Reading Data Tutorial](https://www.tensorflow.org/programmers_guide/reading_data)) 
@@ -80,7 +80,7 @@ bash launch_tensorboard.sh
 then open your browser [http://localhost:6008/](http://localhost:6008/)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/randomrandom/deep-atrous-cnn-sentiment/master/png/tensorboard.png" width="1024"/>
+  <img src="https://raw.githubusercontent.com/randomrandom/deep-atrous-ner/master/png/tensorboard.png" width="1024"/>
 </p>
 
 (kudos to [sugartensor](https://github.com/buriburisuri/sugartensor) for the great tf wrapper which handles all the monitoring out of the box)
