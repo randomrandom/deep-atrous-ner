@@ -288,30 +288,8 @@ def sg_train_func(func):
                     # log epoch information
                     console_log(sess)
 
-                    # create validation progressbar iterator
-                    if opt.tqdm:
-                        val_iterator = tf.tqdm(range(0, opt.val_ep_size), total=opt.val_ep_size, initial=0,
-                                               desc='val', ncols=70, unit='b', leave=False)
-                    else:
-                        val_iterator = range(0, opt.val_ep_size)
-
-                    all_predicted, all_targets = [], []
-                    for _ in val_iterator:
-
-                        # exit loop
-                        if sv.should_stop():
-                            break
-
-                        val_predictions = opt.eval_metric[2]
-                        val_labels = opt.eval_metric[3]
-
-                        predictions, targets = sess.run([val_predictions, val_labels])
-                        all_predicted.extend(predictions.flatten())
-                        all_targets.extend(targets.flatten())
-
-                    f1_separate_scores, f1_stat, _, _, _, _ = calculate_f1_metrics(all_predicted, all_targets)
-                    print('Epoch {} - f1 scores of the meaningful classes: {}'.format(ep, f1_separate_scores))
-                    print('Epoch {} - total f1 score: {}'.format(ep, f1_stat))
+                    f1_stat = show_metrics(sv, sess, opt.eval_metric[2], opt.eval_metric[3], ep, opt.val_ep_size,
+                                              'val', use_tqdm=True)
 
                     if f1_stat > best_f1:
                         best_f1 = f1_stat
@@ -320,7 +298,11 @@ def sg_train_func(func):
 
                         # save last version
                         saver.save(sess, max_model_file)
-                        print("Improved F1 score, max model saved in file: %s" % max_model_file )
+                        print("Improved F1 score, max model saved in file: %s" % max_model_file)
+
+                        print('Test metrics:')
+                        show_metrics(sv, sess, opt.test_metric[0], opt.test_metric[1], ep, opt.test_ep_size,
+                                        'test', use_tqdm=True)
 
                 # save last version
                 saver.save(sess, opt.save_dir + '/model.ckpt', global_step=sess.run(tf.sg_global_step()))
@@ -332,3 +314,28 @@ def sg_train_func(func):
                            (ep - 1, sess.run(tf.sg_global_step())))
 
     return wrapper
+
+
+def show_metrics(sv, sess, predictions_op, labels_op, epoch, ep_size, name, use_tqdm=True):
+    # create progressbar iterator
+    if use_tqdm:
+        iterator = tf.tqdm(range(0, ep_size), total=ep_size, initial=0, desc=name, ncols=70, unit='b', leave=False)
+    else:
+        iterator = range(0, ep_size)
+
+    all_predicted, all_targets = [], []
+    for _ in iterator:
+
+        # exit loop
+        if sv.should_stop():
+            break
+
+        predictions, targets = sess.run([predictions_op, labels_op])
+        all_predicted.extend(predictions.flatten())
+        all_targets.extend(targets.flatten())
+
+    f1_separate_scores, f1_stat, _, _, _, _ = calculate_f1_metrics(all_predicted, all_targets)
+    print('Epoch {} - f1 scores of the meaningful classes: {}'.format(epoch, f1_separate_scores))
+    print('Epoch {} - total f1 score: {}'.format(epoch, f1_stat))
+
+    return f1_stat

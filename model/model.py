@@ -19,7 +19,7 @@ embedding_dim = 300  # 300 # embedding dimension
 latent_dim = 256  # 256 # hidden layer dimension
 num_blocks = 2  # 2 # dilated blocks
 reg_type = 'l2'  # type of regularization used
-default_dout = 0.15  # define the default dropout rate
+default_dout = 0.5  # define the default dropout rate
 
 use_pre_trained_embeddings = True  # whether to use pre-trained embedding vectors
 pre_trained_embeddings_file = EMBEDDINGS_DIR + GLOVE_6B_300d_EMBEDDINGS  # the location of the pre-trained embeddings
@@ -65,18 +65,18 @@ def sg_res_block(tensor, opt):
     with tf.sg_context(name='block_%d_%d' % (opt.block, opt.rate)):
         # reduce dimension
         input_ = (tensor
-                  .sg_bypass(act='relu', bn=(not opt.is_first), name='bypass')  # do not
-                  .sg_conv1d(size=1, dim=in_dim / 2, act='relu', bn=True, regularizer=reg_type, name='conv_in'))
+                  .sg_bypass(act='relu', ln=(not opt.is_first), name='bypass')
+                  .sg_conv1d(size=1, dim=in_dim / 2, act='relu', ln=True, regularizer=reg_type, name='conv_in'))
 
         # 1xk conv dilated
         out = (input_
-               .sg_aconv1d(size=opt.size, rate=opt.rate, dout=opt.dout, causal=opt.causal, act='relu', bn=True,
+               .sg_aconv1d(size=opt.size, rate=opt.rate, causal=opt.causal, act='relu', ln=True,
                            regularizer=reg_type, name='aconv'))
 
         # dimension recover and residual connection
         out = out.sg_conv1d(size=1, dim=in_dim, regularizer=reg_type, name='conv_out') + tensor
 
-        out = out.identity(ln=True, dout=opt.dout, name='layer_norm')
+        out = out.identity(ln=True, name='layer_norm')
 
     return out
 
@@ -93,22 +93,18 @@ def acnn_classify(x, num_classes, test=False, causal=False):
 
         # loop dilated causal conv block
         for i in range(num_blocks):
-            # res = (res.sg_res_block(size=3, block=i, rates=[1, 2, 4, 8], causal=causal, dout=dropout, is_first=i == 0))
             res = (res
                    .sg_res_block(size=3, block=i, rate=1, causal=causal, dout=dropout, is_first=True)
                    .sg_res_block(size=3, block=i, rate=2, causal=causal, dout=dropout)
                    .sg_res_block(size=3, block=i, rate=4, causal=causal, dout=dropout)
-                   .sg_res_block(size=3, block=i, rate=8, causal=causal, dout=dropout)
-                   .sg_res_block(size=3, block=i, rate=16, causal=causal, dout=dropout))
+                   .sg_res_block(size=3, block=i, rate=8, causal=causal, dout=dropout))
 
         batch_size = res.get_shape().as_list()[0]
         in_dim = res.get_shape().as_list()[-1]
 
-        res = res.sg_conv1d(size=1, dim=in_dim, dout=dropout, act='relu', ln=True, regularizer=reg_type,
-                            name='conv_output_formatter')
-
         # fully convolution layer
-        res = res.sg_conv1d(size=1, dim=num_classes, act='relu', ln=True, regularizer=reg_type, name='conv_final')
+        res = res.sg_conv1d(size=1, dim=num_classes, dout=dropout, act='relu', ln=True, regularizer=reg_type,
+                            name='conv_final')
 
         # fc layers & softmax
         res = (res.sg_reshape(shape=[-1, num_classes])
