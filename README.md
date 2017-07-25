@@ -106,23 +106,23 @@ CUDA_VISIBLE_DEVICES=0,1 python test.py ( <== Use only GPU 0, 1 )
 
 It will produces a similar output:
 ```
-Precision scores of the meaningful classes: [ 0.9512689   0.84571279  0.89779375  0.81020146] 
-Recall scores of the meaningful classes: [ 0.956563845  0.87803279  0.90972093  0.80620112]
-F1 scores of the meaningful classes: [ 0.94094456  0.85818368  0.90475575  0.80943852]
-Total precision score: 0.8988072859744991  
+Precision scores of the meaningful classes: [ 0.9712689   0.89571279  0.89779375  0.80020146] 
+Recall scores of the meaningful classes: [ 0.956563845  0.87803279  0.92972093  0.80620112]
+F1 scores of the meaningful classes: [ 0.96567506  0.88388911  0.91051454  0.80530973]
+Total precision score: 0.9188072859744991  
 Total recall score: 0.8992679076693969   
-Total f1 score: 0.8990227514885617         
+Total f1 score: 0.9083685761886454
 ```
 
 Which in the case of the CoNLL-2003 score represents the following table:
 
 Class | Precision | Recall | F1
 --- | --- | --- | ---
-*PER* | 95.12 | 95.65 | 94.09
-*ORG* | 84.57 | 87.80 | 85.81
-*LOC* | 89.77 | 90.97 | 90.47
-*MISC* | 81.02 | 80.62 | 80.94
-*Total* | 89.88 | 89.92 | 89.90
+*PER* | 97.12 | 95.65 | 96.56
+*ORG* | 89.57 | 87.80 | 88.38
+*LOC* | 89.77 | 92.97 | 91.05
+*MISC* | 80.02 | 80.62 | 80.53
+*Total* | 89.92 | 91.88 | 90.83
 
 The script will run by default on the `testb` dataset.
 

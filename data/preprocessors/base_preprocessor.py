@@ -149,10 +149,14 @@ class BasePreprocessor(object):
         return entry
 
     @staticmethod
-    def read_vocabulary(file_path, separator):
-        dictionary = pd.read_csv(file_path, sep=separator, header=None).to_dict()
+    def read_vocabulary(file_path, separator, dictionary=None):
+        df = pd.read_csv(file_path, sep=separator, header=None).fillna().to_dict()
+
+        dictionary = {} if dictionary is None else dictionary
 
         # remap value <> key to key <> value
-        dictionary = {v: k for k, v in dictionary[0].items()}
+        for k, v in df[0].items():
+            if v not in dictionary:
+                dictionary[v] = len(dictionary)
 
         return dictionary

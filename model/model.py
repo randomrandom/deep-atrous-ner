@@ -97,22 +97,19 @@ def acnn_classify(x, num_classes, test=False, causal=False):
                    .sg_res_block(size=3, block=i, rate=1, causal=causal, dout=dropout, is_first=True)
                    .sg_res_block(size=3, block=i, rate=2, causal=causal, dout=dropout)
                    .sg_res_block(size=3, block=i, rate=4, causal=causal, dout=dropout)
-                   .sg_res_block(size=3, block=i, rate=8, causal=causal, dout=dropout))
+                   .sg_res_block(size=3, block=i, rate=8, causal=causal, dout=dropout)
+                   .sg_res_block(size=3, block=i, rate=16, causal=causal, dout=dropout))
 
-        batch_size = res.get_shape().as_list()[0]
         in_dim = res.get_shape().as_list()[-1]
+
+        res = res.sg_conv1d(size=1, dim=in_dim, dout=dropout, act='relu', ln=True, regularizer=reg_type,
+                            name='conv_comress')
 
         # fully convolution layer
         res = res.sg_conv1d(size=1, dim=num_classes, dout=dropout, act='relu', ln=True, regularizer=reg_type,
-                            name='conv_final')
+                            name='conv_final').sg_softmax()
 
-        # fc layers & softmax
-        res = (res.sg_reshape(shape=[-1, num_classes])
-               .sg_dense(dim=num_classes, name='dense_final')
-               .sg_softmax()
-               .sg_reshape(shape=[batch_size, -1, num_classes]))
-
-    return res
+        return res
 
 
 def lstm_cell(is_test):

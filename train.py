@@ -10,8 +10,12 @@ BUCKETS = [20, 60, 80, 120, 180]
 DATA_FILE = ['./data/datasets/conll_2003/eng.train']
 VAL_FILES = ['./data/datasets/conll_2003/eng.testa']
 TEST_FILES = ['./data/datasets/conll_2003/eng.testb']
+OTHER_VOCABULARY_FILES = ['./data/datasets/conll_2003/vocabulary_eng_testa',
+                          './data/datasets/conll_2003/vocabulary_eng_testb']
 
-data = ConllLoader(BUCKETS, DATA_FILE, batch_size=BATCH_SIZE)
+data = ConllLoader(BUCKETS, DATA_FILE, batch_size=BATCH_SIZE, use_pretrained_emb=True,
+                   pretrained_emb_file=pre_trained_embeddings_file, other_vocabulary_files=OTHER_VOCABULARY_FILES,
+                   embed_dim=embedding_dim)
 validation = ConllLoader(BUCKETS, VAL_FILES, batch_size=BATCH_SIZE, table=data.table, table_pos=data.table_pos,
                          table_chunk=data.table_chunk, table_entity=data.table_entity)
 test = ConllLoader(BUCKETS, TEST_FILES, batch_size=BATCH_SIZE, table=data.table, table_pos=data.table_pos,
@@ -28,7 +32,7 @@ entities_emb = None
 word_embedding_name = 'word_emb'
 
 if use_pre_trained_embeddings:
-    embedding_matrix = data.preload_embeddings(embedding_dim, pre_trained_embeddings_file)
+    embedding_matrix = data.pretrained_emb_matrix
     word_emb = init_custom_embeddings(name=word_embedding_name, embeddings_matrix=embedding_matrix, trainable=False)
 else:
     word_emb = tf.sg_emb(name=word_embedding_name, voca_size=data.vocabulary_size, dim=embedding_dim)
@@ -64,6 +68,7 @@ entities = tf.split(data.entities, tf.sg_gpus())
 val_entities = tf.split(validation.entities, tf.sg_gpus())
 test_entities = tf.split(test.entities, tf.sg_gpus())
 
+
 # setup the model for training and validation. Enable multi-GPU support
 @tf.sg_parallel
 def get_train_loss(opt):
@@ -96,6 +101,7 @@ def get_val_metrics(opt):
 
         return val_acc, val_loss, val_predictions, val_labels
 
+
 @tf.sg_parallel
 def get_test_metrics(opt):
     with tf.sg_context(name='model', reuse=True):
@@ -108,6 +114,7 @@ def get_test_metrics(opt):
         test_predictions = test_classifier.sg_argmax() + 1
 
         return test_predictions, test_labels
+
 
 tf.sg_init(sess)
 data.visualize_embeddings(sess, word_emb, word_embedding_name)

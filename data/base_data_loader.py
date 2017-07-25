@@ -35,7 +35,8 @@ class BaseDataLoader(object):
     def __init__(self, record_defaults, field_delim, data_column, bucket_boundaries, file_names,
                  skip_header_lines=_DEFAULT_SKIP_HEADER_LINES, num_threads=_DEFAULT_NUM_THREADS,
                  batch_size=_DEFAULT_BATCH_SIZE, used_for_test_data=False, meta_file=DEFAULT_META_DATA_FILE,
-                 save_dir=DEFAULT_SAVE_DIR, table=None, table_pos=None, table_chunk=None, table_entity=None):
+                 save_dir=DEFAULT_SAVE_DIR, table=None, table_pos=None, table_chunk=None, table_entity=None,
+                 use_pretrained_emb=False, pretrained_emb_file=None, other_vocabulary_files=None, embed_dim=0):
         self.__file_names = file_names
         self.__field_delim = field_delim
         self.__record_defaults = record_defaults
@@ -49,6 +50,10 @@ class BaseDataLoader(object):
         self._batch_size = batch_size
         self._min_after_dequeue = self._batch_size * self.num_threads
         self._capacity = self._min_after_dequeue + (self.num_threads + 2) * self._batch_size
+        self._pretrained_emb_file = pretrained_emb_file
+        self._embed_dim = embed_dim
+        self._other_voca_files = other_vocabulary_files
+        self._use_pretrained_emb = use_pretrained_emb
 
         self.meta_file = meta_file
         self.save_dir = save_dir
@@ -59,6 +64,7 @@ class BaseDataLoader(object):
         self.table_pos = table_pos
         self.table_entity = table_entity
         self.vocabulary_size = 0
+        self.pretrained_emb_matrix = None
 
         self.shuffle_queue = tf.RandomShuffleQueue(capacity=self._capacity,
                                                    min_after_dequeue=self._min_after_dequeue,
@@ -129,9 +135,21 @@ class BaseDataLoader(object):
         # load look up tables that maps words to ids
         if self.table is None:
             print('vocabulary table is None => creating it')
-            self.table = tf.contrib.lookup.index_table_from_file(vocabulary_file=voca_path + voca_name,
-                                                                 default_value=ConllPreprocessor.UNK_TOKEN_ID,
-                                                                 num_oov_buckets=0)
+            main_voca_file = voca_path + voca_name
+
+            if self._use_pretrained_emb:
+                self.pretrained_emb_matrix, vocabulary = self.preload_embeddings(embed_dim=self._embed_dim,
+                                                                                 file_name=self._pretrained_emb_file,
+                                                                                 train_vocabulary=main_voca_file,
+                                                                                 other_vocabularies=self._other_voca_files)
+                tensor_vocabulary = tf.constant(vocabulary)
+                self.table = tf.contrib.lookup.index_table_from_tensor(tensor_vocabulary,
+                                                                       default_value=ConllPreprocessor.UNK_TOKEN_ID,
+                                                                       num_oov_buckets=0)
+            else:
+                self.table = tf.contrib.lookup.index_table_from_file(vocabulary_file=main_voca_file,
+                                                                     default_value=ConllPreprocessor.UNK_TOKEN_ID,
+                                                                     num_oov_buckets=0)
 
         if self.table_pos is None:
             print('vocabulary table_pos is None => creating it')
@@ -240,18 +258,29 @@ class BaseDataLoader(object):
 
         return words, pos, chunks, capitals, entities
 
-    def preload_embeddings(self, embed_dim, file_name=DEFAULT_PRE_TRAINED_EMBEDDINGS):
+    def preload_embeddings(self, embed_dim, file_name=DEFAULT_PRE_TRAINED_EMBEDDINGS, train_vocabulary=None,
+                           other_vocabularies=None):
         """
         Pre-loads word embeddings like word2vec and Glove
+        :param other_vocabularies: 
+        :param train_vocabulary: 
         :param embed_dim: the embedding dimension, currently should equal to the one in the original pre-trained vector
         :param file_name: the name of the pre-trained embeddings file
         :return: the loaded pre-trained embeddings
         """
 
-        pre_trained_emb = np.random.uniform(-0.1, 0.1, (self.vocabulary_size, embed_dim))
         with open(file_name, 'r', encoding='utf-8') as emb_file:
             mapped_words = 0
-            dictionary = ConllPreprocessor.read_vocabulary(self.__vocabulary_file, self.__field_delim)
+            dictionary = ConllPreprocessor.read_vocabulary(train_vocabulary, self.__field_delim)
+
+            for voca_file in other_vocabularies:
+                dictionary = ConllPreprocessor.read_vocabulary(voca_file, self.__field_delim, dictionary=dictionary)
+
+            self.vocabulary_size = len(dictionary)
+            vocabulary = sorted(dictionary, key=dictionary.get)
+
+            pre_trained_emb = np.random.uniform(-0.1, 0.1, (self.vocabulary_size, embed_dim))
+
             missing_words = dictionary.copy()
             invalid_words = 0
 
@@ -283,7 +312,7 @@ class BaseDataLoader(object):
 
         print('Loaded pre-trained embeddings')
 
-        return pre_trained_emb
+        return pre_trained_emb, vocabulary
 
     def visualize_embeddings(self, sess, tensor, name):
         """
