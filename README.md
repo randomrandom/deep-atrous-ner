@@ -143,4 +143,4 @@ George Stoyanov. Deep-Atrous-CNN-NER. 2017. GitHub repository. https://github.co
 </code></pre>
 
 ## Authors
-George Stoyanov (george@ai.hacker.works) at AiWorks.
+George Stoyanov (georgi.val.stoyan0v@gmail.com)
