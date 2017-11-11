@@ -10,8 +10,8 @@ BUCKETS = [20, 60, 80, 120, 180]
 DATA_FILE = ['./data/datasets/conll_2003/eng.train']
 VAL_FILES = ['./data/datasets/conll_2003/eng.testa']
 TEST_FILES = ['./data/datasets/conll_2003/eng.testb']
-OTHER_VOCABULARY_FILES = ['./data/datasets/conll_2003/vocabulary_eng_testa',
-                          './data/datasets/conll_2003/vocabulary_eng_testb']
+OTHER_VOCABULARY_FILES = ['./data/datasets/conll_2003/vocabulary_eng.testa',
+                          './data/datasets/conll_2003/vocabulary_eng.testb']
 
 data = ConllLoader(BUCKETS, DATA_FILE, batch_size=BATCH_SIZE, use_pretrained_emb=True,
                    pretrained_emb_file=pre_trained_embeddings_file, other_vocabulary_files=OTHER_VOCABULARY_FILES,
