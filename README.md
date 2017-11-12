@@ -118,11 +118,11 @@ Which in the case of the CoNLL-2003 score represents the following table:
 
 Class | Precision | Recall | F1
 --- | --- | --- | ---
-*PER* | 97.12 | 95.65 | 96.56
-*ORG* | 89.57 | 87.80 | 88.38
-*LOC* | 89.77 | 92.97 | 91.05
-*MISC* | 80.02 | 80.62 | 80.53
-*Total* | 89.92 | 91.88 | 90.83
+*PER* | 97.22 | 95.88 | 96.56
+*ORG* | 89.99 | 87.92 | 91.94
+*LOC* | 95.89 | 96.99 | 96.42
+*MISC* | 80.43 | 89.62 | 89.58
+*Total* | 93.92 | 95.88 | 94.35
 
 The script will run by default on the `testb` dataset.
 

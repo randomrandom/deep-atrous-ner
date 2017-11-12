@@ -19,7 +19,7 @@ embedding_dim = 300  # 300 # embedding dimension
 latent_dim = 256  # 256 # hidden layer dimension
 num_blocks = 2  # 2 # dilated blocks
 reg_type = 'l2'  # type of regularization used
-default_dout = 0.5  # define the default dropout rate
+default_dout = 0.1  # define the default dropout rate
 
 use_pre_trained_embeddings = True  # whether to use pre-trained embedding vectors
 pre_trained_embeddings_file = EMBEDDINGS_DIR + GLOVE_6B_300d_EMBEDDINGS  # the location of the pre-trained embeddings

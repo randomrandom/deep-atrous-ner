@@ -5,6 +5,7 @@ import numpy as np
 import sugartensor as tf
 from tensorflow.contrib.tensorboard.plugins import projector
 
+from data.datasets.conll_2003 import preprocess_conll
 from data.preprocessors.base_preprocessor import BasePreprocessor
 from data.preprocessors.conll_preprocessor import ConllPreprocessor
 
@@ -131,6 +132,12 @@ class BaseDataLoader(object):
             original_file_names[0])  # TODO: will be break with multiple filenames
         voca_name = ConllPreprocessor.VOCABULARY_PREFIX + voca_suffix
         self.__vocabulary_file = voca_path + voca_name
+
+        # make sure the all the other vocabularies are cleaned and generated
+        # before we try to build one big vocabulary.
+        for other_voc in self._other_voca_files:
+            preprocess_conll.preprocess_file(voca_path, other_voc.split("_")[-1], self.__field_delim,
+                                             self.DEFAULT_VOCABULARY_SIZE, self.DEFAULT_MAX_DATA_LENGTH)
 
         # load look up tables that maps words to ids
         if self.table is None:

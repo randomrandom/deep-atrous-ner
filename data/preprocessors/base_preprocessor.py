@@ -150,7 +150,7 @@ class BasePreprocessor(object):
 
     @staticmethod
     def read_vocabulary(file_path, separator, dictionary=None):
-        df = pd.read_csv(file_path, sep=separator, header=None).fillna('').to_dict()
+        df = pd.read_csv(file_path, sep=separator, header=None).fillna(BasePreprocessor.UNK_TOKEN).to_dict()
 
         dictionary = {} if dictionary is None else dictionary
 
