@@ -11,8 +11,8 @@ BUCKETS = [20, 60, 80, 120, 180]
 DATA_FILE = ['./data/datasets/conll_2003/eng.train']
 VAL_FILES = ['./data/datasets/conll_2003/eng.testa']
 TEST_FILES = ['./data/datasets/conll_2003/eng.testb']
-OTHER_VOCABULARY_FILES = ['vocabulary_eng.testa',
-                          'vocabulary_eng.testb']
+OTHER_VOCABULARY_FILES = ['./data/datasets/conll_2003/vocabulary_eng.testa',
+                          './data/datasets/conll_2003/vocabulary_eng.testb']
 
 preprocess_files()
 
