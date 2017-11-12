@@ -1,6 +1,7 @@
 from data.conll_loader import ConllLoader
 from model.model import *
 from model.trainer import classifier_train
+from preprocess import preprocess_files
 
 __author__ = 'georgi.val.stoyan0v@gmail.com'
 
@@ -12,6 +13,8 @@ VAL_FILES = ['./data/datasets/conll_2003/eng.testa']
 TEST_FILES = ['./data/datasets/conll_2003/eng.testb']
 OTHER_VOCABULARY_FILES = ['vocabulary_eng.testa',
                           'vocabulary_eng.testb']
+
+preprocess_files()
 
 data = ConllLoader(BUCKETS, DATA_FILE, batch_size=BATCH_SIZE, use_pretrained_emb=True,
                    pretrained_emb_file=pre_trained_embeddings_file, other_vocabulary_files=OTHER_VOCABULARY_FILES,
