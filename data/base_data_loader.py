@@ -5,7 +5,6 @@ import numpy as np
 import sugartensor as tf
 from tensorflow.contrib.tensorboard.plugins import projector
 
-from data.datasets.conll_2003 import preprocess_conll
 from data.preprocessors.base_preprocessor import BasePreprocessor
 from data.preprocessors.conll_preprocessor import ConllPreprocessor
 
@@ -141,7 +140,7 @@ class BaseDataLoader(object):
             if self._use_pretrained_emb:
                 self.pretrained_emb_matrix, vocabulary = self.preload_embeddings(embed_dim=self._embed_dim,
                                                                                  file_name=self._pretrained_emb_file,
-                                                                                 train_vocabulary=main_voca_file,
+                                                                                 main_vocabulary=main_voca_file,
                                                                                  other_vocabularies=self._other_voca_files)
                 tensor_vocabulary = tf.constant(vocabulary)
                 self.table = tf.contrib.lookup.index_table_from_tensor(tensor_vocabulary,
@@ -259,12 +258,12 @@ class BaseDataLoader(object):
 
         return words, pos, chunks, capitals, entities
 
-    def preload_embeddings(self, embed_dim, file_name=DEFAULT_PRE_TRAINED_EMBEDDINGS, train_vocabulary=None,
+    def preload_embeddings(self, embed_dim, file_name=DEFAULT_PRE_TRAINED_EMBEDDINGS, main_vocabulary=None,
                            other_vocabularies=None):
         """
         Pre-loads word embeddings like word2vec and Glove
         :param other_vocabularies: 
-        :param train_vocabulary: 
+        :param main_vocabulary: 
         :param embed_dim: the embedding dimension, currently should equal to the one in the original pre-trained vector
         :param file_name: the name of the pre-trained embeddings file
         :return: the loaded pre-trained embeddings
@@ -272,7 +271,7 @@ class BaseDataLoader(object):
 
         with open(file_name, 'r', encoding='utf-8') as emb_file:
             mapped_words = 0
-            dictionary = ConllPreprocessor.read_vocabulary(train_vocabulary, self.__field_delim)
+            dictionary = ConllPreprocessor.read_vocabulary(main_vocabulary, self.__field_delim)
 
             for voca_file in other_vocabularies:
                 dictionary = ConllPreprocessor.read_vocabulary(voca_file, self.__field_delim, dictionary=dictionary)
@@ -306,7 +305,8 @@ class BaseDataLoader(object):
             print('Invalid words count: %d' % invalid_words)
             print('Mapped words to pre-trained embeddings: %d' % mapped_words)
 
-            # TODO: should do some updates in voca_size if mapped words are less, currently missing words are random embeddings which are not going to be trained
+            # TODO: should do some updates in voca_size if mapped words are less, currently missing words are random
+            # embeddings which are not going to be trained
             # assert mapped_words == self.VOCABULARY_SIZE, 'Glove mapping should equal to the vocabulary size'
 
         pre_trained_emb[dictionary[BasePreprocessor.PAD_TOKEN]] = [0] * embed_dim

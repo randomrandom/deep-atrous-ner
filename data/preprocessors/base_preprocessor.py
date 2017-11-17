@@ -61,12 +61,16 @@ class BasePreprocessor(object):
         for example in data[column_name]:
             all_text.extend(example.split())
 
-        all_words = [(self.pad_token, -1), (self.unk_token, -1), (self.eos_token, -1)]
+        all_words = collections.Counter(all_text).most_common(self.vocabulary_size - 3)
+
+        sorted_by_name = sorted(all_words, key=lambda x: x[0])
+        all_words = sorted(sorted_by_name, key=lambda x: x[1], reverse=True)
+
+        tokens = [(self.pad_token, -1), (self.unk_token, -1), (self.eos_token, -1)]
+        all_words = tokens + all_words
 
         assert all_words[BasePreprocessor.UNK_TOKEN_ID][0] == \
                self.unk_token, '<UNK> token id and actual position should match'
-
-        all_words.extend(collections.Counter(all_text).most_common(self.vocabulary_size - 3))
 
         for word in all_words:
             if word[0] not in self._dictionary:
@@ -150,12 +154,13 @@ class BasePreprocessor(object):
 
     @staticmethod
     def read_vocabulary(file_path, separator, dictionary=None):
-        df = pd.read_csv(file_path, sep=separator, header=None).fillna(BasePreprocessor.UNK_TOKEN).to_dict()
+        df = pd.read_csv(file_path, sep=separator, header=None, encoding='utf-8').to_dict()
 
         dictionary = {} if dictionary is None else dictionary
 
         # remap value <> key to key <> value
         for k, v in df[0].items():
+            v = str(v)
             if v not in dictionary:
                 dictionary[v] = len(dictionary)
 
