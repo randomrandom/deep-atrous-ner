@@ -153,6 +153,13 @@ class BasePreprocessor(object):
         return entry
 
     @staticmethod
+    def save_metadata(save_dir, file_name, vocabulary, separator):
+        metadata = pd.DataFrame(data=vocabulary, columns=["Word"])
+        metadata.to_csv(save_dir + file_name, sep=separator, index=False, header=False,
+                        quoting=csv.QUOTE_NONE, encoding='utf-8')
+        print("Saved full vocabulary to {} file".format(file_name))
+
+    @staticmethod
     def read_vocabulary(file_path, separator, dictionary=None):
         df = pd.read_csv(file_path, sep=separator, header=None, encoding='utf-8').to_dict()
 

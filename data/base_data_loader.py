@@ -12,7 +12,9 @@ __author__ = 'george.val.stoyan0v@gmail.com'
 
 
 class BaseDataLoader(object):
-    __DEFAULT_DELIM = "\t"
+    TSV_DELIM = '\t'
+
+    __DEFAULT_DELIM = TSV_DELIM
     _DEFAULT_SKIP_HEADER_LINES = 0
     _DEFAULT_NUM_THREADS = 32
     _DEFAULT_BATCH_SIZE = 32
@@ -143,6 +145,9 @@ class BaseDataLoader(object):
                                                                                  main_vocabulary=main_voca_file,
                                                                                  other_vocabularies=self._other_voca_files)
                 tensor_vocabulary = tf.constant(vocabulary)
+                ConllPreprocessor.save_metadata(self.DEFAULT_META_DATA_DIR, BaseDataLoader.DEFAULT_META_DATA_FILE,
+                                                vocabulary, self.TSV_DELIM)
+
                 self.table = tf.contrib.lookup.index_table_from_tensor(tensor_vocabulary,
                                                                        default_value=ConllPreprocessor.UNK_TOKEN_ID,
                                                                        num_oov_buckets=0)
@@ -290,7 +295,8 @@ class BaseDataLoader(object):
 
                 # TODO: PCA should be added to support different embedding dimensions from pre-trained embeddings
                 assert len(row[1:]) == embed_dim, \
-                    'Embedding dimension should be same as the one in the pre-trained embeddings.'
+                    'Embedding dimension should be same as the one in the pre-trained embeddings. Loaded embeddings ' \
+                    'length: %d, desired dimensions: %d' % (len(row[1:]), embed_dim)
 
                 if word in dictionary:
                     vector = np.array([float(val) for val in row[1:]])

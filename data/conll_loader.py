@@ -7,7 +7,6 @@ __author__ = 'georgi.val.stoyan0v@gmail.com'
 
 
 class ConllLoader(BaseDataLoader):
-    TSV_DELIM = '\t'
     DATA_COLUMN = ConllPreprocessor.EXAMPLE_COLUMN
 
     DEFAULT_META_DATA_FILE = 'metadata_eng.train'
