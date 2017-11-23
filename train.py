@@ -1,7 +1,6 @@
 from data.conll_loader import ConllLoader
 from model.model import *
 from model.trainer import classifier_train
-from preprocess import preprocess_files
 
 __author__ = 'georgi.val.stoyan0v@gmail.com'
 
@@ -13,8 +12,6 @@ VAL_FILES = ['./data/datasets/conll_2003/eng.testa']
 TEST_FILES = ['./data/datasets/conll_2003/eng.testb']
 OTHER_VOCABULARY_FILES = ['./data/datasets/conll_2003/vocabulary_eng.testa',
                           './data/datasets/conll_2003/vocabulary_eng.testb']
-
-preprocess_files()
 
 data = ConllLoader(BUCKETS, DATA_FILE, batch_size=BATCH_SIZE, use_pretrained_emb=True,
                    pretrained_emb_file=pre_trained_embeddings_file, other_vocabulary_files=OTHER_VOCABULARY_FILES,
@@ -29,9 +26,6 @@ sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
 
 # setup embeddings, preload pre-trained embeddings if needed
 word_emb = None
-pos_emb = None
-chunk_emb = None
-entities_emb = None
 word_embedding_name = 'word_emb'
 
 if use_pre_trained_embeddings:
@@ -44,7 +38,7 @@ else:
 z_w = data.source_words.sg_lookup(emb=word_emb)
 z_p = tf.one_hot(data.source_pos - 1, depth=num_pos)
 z_c = tf.one_hot(data.source_chunk - 1, depth=num_chunk)
-z_cap = data.source_capitals.sg_cast(dtype=tf.float32)
+z_cap = tf.one_hot(data.source_capitals - 2, depth=1)
 
 # we concatenated all inputs into one single input vector
 z_i = tf.split(tf.concat([z_w, z_p, z_c, z_cap], 2), tf.sg_gpus())
@@ -53,7 +47,7 @@ z_i = tf.split(tf.concat([z_w, z_p, z_c, z_cap], 2), tf.sg_gpus())
 v_w = validation.source_words.sg_lookup(emb=word_emb)
 v_p = tf.one_hot(validation.source_pos - 1, depth=num_pos)
 v_c = tf.one_hot(validation.source_chunk - 1, depth=num_chunk)
-v_cap = validation.source_capitals.sg_cast(dtype=tf.float32)
+v_cap = tf.one_hot(validation.source_capitals - 2, depth=1)
 
 # we concatenated all inputs into one single input vector
 v_i = tf.split(tf.concat([v_w, v_p, v_c, v_cap], 2), tf.sg_gpus())
@@ -62,7 +56,7 @@ v_i = tf.split(tf.concat([v_w, v_p, v_c, v_cap], 2), tf.sg_gpus())
 t_w = test.source_words.sg_lookup(emb=word_emb)
 t_p = tf.one_hot(test.source_pos - 1, depth=num_pos)
 t_c = tf.one_hot(test.source_chunk - 1, depth=num_chunk)
-t_cap = test.source_capitals.sg_cast(dtype=tf.float32)
+t_cap = tf.one_hot(test.source_capitals - 2, depth=1)
 
 # we concatenated all inputs into one single input vector
 t_i = tf.split(tf.concat([t_w, t_p, t_c, t_cap], 2), tf.sg_gpus())
@@ -80,7 +74,7 @@ def get_train_loss(opt):
 
         train_classifier = acnn_classify(opt.input[opt.gpu_index], num_labels)
 
-        # cross entropy loss with logit
+        # cross entropy loss with logits
         loss = train_classifier.ner_cost(target=labels, num_classes=num_labels)
 
         return loss
@@ -112,7 +106,6 @@ def get_test_metrics(opt):
 
         test_labels = opt.entities[opt.gpu_index]
 
-        # test_classifier = rnn_classify(opt.v_i[opt.gpu_index], num_labels, is_test=True)
         test_classifier = acnn_classify(opt.input[opt.gpu_index], num_labels, test=True)
         test_predictions = test_classifier.sg_argmax() + 1
 

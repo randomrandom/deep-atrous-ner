@@ -74,6 +74,7 @@ class BaseDataLoader(object):
                                                    shapes=None, name='shuffle_queue')
 
     def get_data(self):
+        print("Getting data via BaseDataLoader.")
         return self.__load_data(self.__file_names, record_defaults=self.__record_defaults,
                                 field_delim=self.__field_delim, data_column=self.__data_column,
                                 bucket_boundaries=self.__bucket_boundaries, skip_header_lines=self.__skip_header_lines,
@@ -177,7 +178,7 @@ class BaseDataLoader(object):
         if self._used_for_test_data:
             print('Reverse vocabulary is needed => creating it')
             self.reverse_table = tf.contrib.lookup.index_to_string_table_from_file(
-                vocabulary_file=voca_path + voca_name)
+                vocabulary_file=voca_path + BaseDataLoader.DEFAULT_META_DATA_FILE)
             print('Reverse entity vocabulary is needed => creating it')
             self.reverse_table_entity = tf.contrib.lookup.index_to_string_table_from_file(
                 vocabulary_file=voca_path + self._TABLE_ENTITY + voca_suffix)
@@ -242,7 +243,7 @@ class BaseDataLoader(object):
         padded_sent = padded_sent.sg_reshape(shape=[self._batch_size, -1])
         padded_pos = padded_pos.sg_reshape(shape=[self._batch_size, -1])
         padded_chunk = padded_chunk.sg_reshape(shape=[self._batch_size, -1])
-        padded_capitals = padded_capitals.sg_reshape(shape=[self._batch_size, -1, 1])
+        padded_capitals = padded_capitals.sg_reshape(shape=[self._batch_size, -1]) - 1
         padded_entities = padded_entities.sg_reshape(shape=[self._batch_size, -1])
 
         return padded_sent, padded_pos, padded_chunk, padded_capitals, padded_entities

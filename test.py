@@ -2,7 +2,6 @@ from tqdm import tqdm
 
 from data.conll_loader import ConllLoader
 from model.model import *
-from preprocess import preprocess_files
 
 __author__ = 'georgi.val.stoyan0v@gmail.com'
 
@@ -27,9 +26,6 @@ test = ConllLoader(BUCKETS, TEST_FILES, batch_size=BATCH_SIZE, table=data.table,
 
 # setup embeddings, preload pre-trained embeddings if needed
 word_emb = None
-pos_emb = None
-chunk_emb = None
-entities_emb = None
 word_embedding_name = 'word_emb'
 
 if use_pre_trained_embeddings:

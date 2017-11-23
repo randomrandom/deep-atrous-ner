@@ -57,6 +57,8 @@ non entity elements tagged as (O).
 
 ## Training the network
 
+Before training the network you need to preprocess all the files. Do this by running `python preprocess.py`
+
 The model can be trained across multiple GPUs to speed up the computations. In order to start the training:
 
 Execute

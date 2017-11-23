@@ -161,13 +161,15 @@ class BasePreprocessor(object):
 
     @staticmethod
     def read_vocabulary(file_path, separator, dictionary=None):
+        print("Reading vocabulary: {}".format(file_path))
         df = pd.read_csv(file_path, sep=separator, header=None, encoding='utf-8').to_dict()
 
         dictionary = {} if dictionary is None else dictionary
 
         # remap value <> key to key <> value
         for k, v in df[0].items():
-            v = str(v)
+            if not isinstance(v, str):
+                v = str(v)
             if v not in dictionary:
                 dictionary[v] = len(dictionary)
 

@@ -69,9 +69,8 @@ def sg_res_block(tensor, opt):
                   .sg_conv1d(size=1, dim=in_dim / 2, act='relu', ln=True, regularizer=reg_type, name='conv_in'))
 
         # 1xk conv dilated
-        out = (input_
-               .sg_aconv1d(size=opt.size, rate=opt.rate, causal=opt.causal, act='relu', ln=True,
-                           regularizer=reg_type, name='aconv'))
+        out = (input_.sg_aconv1d(size=opt.size, rate=opt.rate, causal=opt.causal, act='relu', ln=True,
+                                 regularizer=reg_type, name='aconv'))
 
         # dimension recover and residual connection
         out = out.sg_conv1d(size=1, dim=in_dim, regularizer=reg_type, name='conv_out') + tensor
@@ -145,7 +144,7 @@ def ner_cost(tensor, opt):
     cross_entropy = one_hot_labels * tf.log(tensor)
     cross_entropy = -tf.reduce_sum(cross_entropy, reduction_indices=2)
 
-    mask = tf.sign(tf.reduce_max(tf.abs(one_hot_labels), reduction_indices=2))
+    mask = tf.sign(tf.abs(opt.target))
 
     cross_entropy *= tf.cast(mask, tf.float32)
     cross_entropy = tf.reduce_sum(cross_entropy, reduction_indices=1)
