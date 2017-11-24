@@ -5,7 +5,7 @@ from model.model import *
 
 __author__ = 'georgi.val.stoyan0v@gmail.com'
 
-BATCH_SIZE = 4  # should be more than one
+BATCH_SIZE = 64  # should be more than one
 DEBUG_SHOW = -1  # number of prediction samples to be shown
 EPOCHS = 1
 
@@ -37,7 +37,7 @@ else:
 z_w = test.source_words.sg_lookup(emb=word_emb)
 z_p = tf.one_hot(test.source_pos - 1, depth=num_pos)
 z_c = tf.one_hot(test.source_chunk - 1, depth=num_chunk)
-z_cap = test.source_capitals.sg_cast(dtype=tf.float32)
+z_cap = tf.one_hot(test.source_capitals - 2, depth=1)
 
 # we concatenated all inputs into one single input vector
 z_i = tf.concat([z_w, z_p, z_c, z_cap], 2)

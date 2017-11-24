@@ -165,7 +165,9 @@ tf.sg_inject_func(ner_cost)
 
 def calculate_f1_metrics(all_predicted, all_targets):
     first_class = first_meaningful_entity
-    class_count = len(set(all_targets))
+    entities_set = set(all_targets)
+    entities_set.add(0)  # add <PAD> token id
+    class_count = len(entities_set)
     filtered_true, filtered_predicted = [], []
 
     for i in range(len(all_targets)):
